@@ -5,14 +5,32 @@
   "type": "module",
   "main": "backend/server.js",
   "scripts": {
-    "start": "node backend/server.js",
-    "dev": "node --watch backend/server.js",
-    "reset": "node -e \"import('node:fs').then(fs=>{try{fs.rmSync('./data/metrocontrol.db');fs.rmSync('./data/metrocontrol.db-wal',{force:true});fs.rmSync('./data/metrocontrol.db-shm',{force:true})}catch(e){}console.log('Banco resetado.')})\""
+    "start": "node --env-file=.env backend/server.js",
+    "start:no-env": "node backend/server.js",
+    "dev": "node --env-file=.env --watch backend/server.js",
+    "start:pg-demo": "PG_MEM=1 node backend/server.js",
+    "reset": "node -e \"import('node:fs').then(fs=>{try{fs.rmSync('./data/metrocontrol.db');fs.rmSync('./data/metrocontrol.db-wal',{force:true});fs.rmSync('./data/metrocontrol.db-shm',{force:true})}catch(e){}console.log('Banco resetado.')})\"",
+    "backup:pg": "bash scripts/backup-pg.sh",
+    "backup:sqlite": "bash scripts/backup-sqlite.sh",
+    "restaurar:pg": "bash scripts/restaurar-pg.sh"
   },
   "engines": {
     "node": ">=22.5.0"
   },
-  "keywords": ["metrologia", "iso17025", "calibracao", "padroes", "rastreabilidade", "inmetro"],
+  "keywords": [
+    "metrologia",
+    "iso17025",
+    "calibracao",
+    "padroes",
+    "rastreabilidade",
+    "inmetro"
+  ],
   "author": "EXCELMETRO",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "pg-mem": "^3.0.5"
+  }
 }

@@ -7,7 +7,7 @@ import { createServer } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
-import { initSchema, get } from './src/db/database.js';
+import { initSchema, get, USE_PG } from './src/db/database.js';
 import { Router, HttpError, sendJSON, lerCorpo, servirEstatico } from './src/lib/http.js';
 import { seed } from './src/db/seed.js';
 
@@ -22,23 +22,25 @@ import * as dashboard from './src/routes/dashboard.js';
 import * as relatorios from './src/routes/relatorios.js';
 import * as usuarios from './src/routes/usuarios.js';
 import * as auditoria from './src/routes/auditoria.js';
+import * as backup from './src/routes/backup.js';
+import * as dbexplorer from './src/routes/dbexplorer.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FRONTEND_DIR = join(__dirname, '../frontend');
 const PORT = process.env.PORT || 3000;
 
-// --- Inicialização do banco -------------------------------------------------
-initSchema();
-const totalUsuarios = get(`SELECT COUNT(*) c FROM usuarios`).c;
+// --- Inicialização do banco (top-level await — ESM) -------------------------
+await initSchema();
+const totalUsuarios = Number((await get(`SELECT COUNT(*) c FROM usuarios`)).c);
 if (totalUsuarios === 0) {
     console.log('🌱  Banco vazio — populando com dados de demonstração...');
-    seed();
+    await seed();
 }
 
 // --- Montagem do roteador ---------------------------------------------------
 const router = new Router();
 for (const mod of [auth, padroes, movimentacoes, calibracoes, normas,
-    servicos, dashboard, relatorios, usuarios, auditoria]) {
+    servicos, dashboard, relatorios, usuarios, auditoria, backup, dbexplorer]) {
     mod.register(router);
 }
 
@@ -72,7 +74,8 @@ const server = createServer(async (req, res) => {
 
         try {
             if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
-                ctx.body = await lerCorpo(req);
+                const limite = pathname === '/api/backup/restaurar' ? 200 * 1024 * 1024 : undefined;
+                ctx.body = await lerCorpo(req, limite);
             }
             const handler = match.route.handlers[match.route.handlers.length - 1];
             const resultado = await handler(ctx);
@@ -113,6 +116,7 @@ server.listen(PORT, () => {
     console.log('');
     console.log(`  ➜  Aplicação:  http://localhost:${PORT}`);
     console.log(`  ➜  API REST:   http://localhost:${PORT}/api`);
+    console.log(`  ➜  Banco:      ${USE_PG ? 'PostgreSQL' + (process.env.PG_MEM ? ' (em memória / teste)' : '') : 'SQLite (local)'}`);
     console.log('');
     console.log('  Login padrão:  admin@metrocontrol.com  /  Admin@123');
     console.log('');

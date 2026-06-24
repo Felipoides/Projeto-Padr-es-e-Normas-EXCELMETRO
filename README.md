@@ -19,27 +19,32 @@
 
 ```bash
 # 1. Entre na pasta do projeto
-cd metrocontrol
+cd "Projeto Padrões e Normas EXCELMETRO"
 
-# 2. Inicie o servidor (NÃO precisa instalar nada)
-npm start          # ou:  node backend/server.js
+# 2. (PostgreSQL) instale o driver — para SQLite local pode pular
+npm install
 
-# 3. Abra no navegador
-#    http://localhost:3000
+# 3. Inicie o servidor
+npm start                 # SQLite local (padrão, zero config)
+# npm run start:pg-demo   # PostgreSQL em memória (demo)
+# DATABASE_URL=postgres://... npm start   # PostgreSQL real (produção)
+
+# 4. Abra no navegador → http://localhost:3000
 ```
 
-Na primeira execução o sistema cria o banco `data/metrocontrol.db` e popula com
-**12 padrões, 6 normas, 3 serviços, 5 usuários e históricos de demonstração**.
+Na primeira execução o sistema cria o schema e popula com **12 padrões, 6 normas,
+3 serviços, 5 usuários e históricos de demonstração**.
+
+> 🐘 **Banco de dados:** funciona em **PostgreSQL** (produção, via `DATABASE_URL`)
+> ou **SQLite** (dev local, padrão) com o mesmo código. Guia completo em
+> [docs/POSTGRESQL.md](docs/POSTGRESQL.md). Validado por 52 testes nos dois bancos.
 
 ### 🔑 Contas de demonstração
 
-| Perfil          | E-mail                       | Senha        | O que pode fazer                                  |
-|-----------------|------------------------------|--------------|--------------------------------------------------|
-| Administrador   | `admin@metrocontrol.com`     | `Admin@123`  | Tudo: usuários, exclusões, restaurar lixeira     |
-| Gestor          | `gestor@metrocontrol.com`    | `Gestor@123` | Gerencia operação + vê usuários/auditoria        |
-| Técnico         | `tecnico@metrocontrol.com`   | `Tecnico@123`| Cadastra, movimenta, calibra padrões             |
-| Auditor         | `auditor@metrocontrol.com`   | `Auditor@123`| Somente leitura + trilha de auditoria            |
-| Visualizador    | `viewer@metrocontrol.com`    | `Viewer@123` | Somente leitura                                  |
+| Perfil              | E-mail                          | Senha           | O que pode fazer                                      |
+|---------------------|---------------------------------|-----------------|------------------------------------------------------|
+| Administrador       | `admin@metrocontrol.com`        | `Admin@123`     | Tudo: usuários, exclusões, restaurar lixeira, auditoria |
+| Controle de Padrões | `controle@metrocontrol.com`     | `Controle@123`  | Cadastra, movimenta, calibra padrões, normas, serviços, auditoria |
 
 > ⚠️ **Em produção, troque todas as senhas** e defina as variáveis `JWT_SECRET` e `DB_PATH`.
 
@@ -56,7 +61,7 @@ Na primeira execução o sistema cria o banco `data/metrocontrol.db` e popula co
 | **Serviços** | Procedimento, técnico, padrões e normas utilizados, status, histórico |
 | **Dashboard** | KPIs executivos + gráficos interativos (rosca, barras, linha) + timeline de atividades |
 | **Relatórios** | 8 relatórios em **PDF** (impressão) e **Excel/CSV** |
-| **Segurança** | Login, senha com scrypt, **2FA (TOTP)**, RBAC com 5 perfis, bloqueio por tentativas, logs e auditoria |
+| **Segurança** | Login, senha com scrypt, **2FA (TOTP)**, RBAC com 2 perfis (Administrador + Controle de Padrões), bloqueio por tentativas, logs e auditoria |
 | **Proteção de dados** | Exclusão **lógica** com dupla confirmação + motivo, **lixeira**, restauração, versionamento, histórico permanente |
 | **Diferenciais** | QR Code + scanner por câmera, mapa de localização, linha do tempo, tema claro/escuro, pesquisa global |
 

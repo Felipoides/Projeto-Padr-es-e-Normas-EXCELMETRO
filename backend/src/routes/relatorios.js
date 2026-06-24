@@ -83,17 +83,17 @@ function paraCSV(linhas) {
 export function register(router) {
     // Lista de relatórios disponíveis (para montar o menu).
     router.get('/api/relatorios', async (ctx) => {
-        autenticar(ctx);
+        await autenticar(ctx);
         return Object.entries(RELATORIOS).map(([chave, r]) => ({ chave, titulo: r.titulo }));
     });
 
     // Gera um relatório em JSON (para PDF) ou CSV (para Excel).
     router.get('/api/relatorios/:tipo', async (ctx) => {
-        autenticar(ctx);
+        await autenticar(ctx);
         const def = RELATORIOS[ctx.params.tipo];
         if (!def) throw new HttpError(404, 'Relatório inexistente.');
-        const linhas = all(def.sql);
-        registrarAuditoria(ctx, 'EXPORTAR', 'relatorios', null,
+        const linhas = await all(def.sql);
+        await registrarAuditoria(ctx, 'EXPORTAR', 'relatorios', null,
             `Relatório "${def.titulo}" exportado (${ctx.query.formato || 'json'})`);
 
         if (ctx.query.formato === 'csv') {

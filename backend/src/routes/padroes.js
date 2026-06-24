@@ -1,7 +1,7 @@
 // ============================================================================
 //  MetroControl — Rotas do módulo PADRÕES (entidade central)
 // ============================================================================
-import { all, get, run, transaction } from '../db/database.js';
+import { all, get, run } from '../db/database.js';
 import { HttpError } from '../lib/http.js';
 import { autenticar, exigirEscrita } from '../middleware/auth.js';
 import { registrarAuditoria } from '../lib/audit.js';
@@ -42,7 +42,7 @@ function enriquecer(p) {
 export function register(router) {
     // ---- LISTAR (busca avançada + filtros) ------------------------------
     router.get('/api/padroes', async (ctx) => {
-        autenticar(ctx);
+        await autenticar(ctx);
         const q = ctx.query;
         const where = ['p.excluido_em IS NULL'];
         const params = [];
@@ -70,46 +70,46 @@ export function register(router) {
 
         const limite = Math.min(parseInt(q.limite) || 200, 1000);
         const offset = parseInt(q.offset) || 0;
-        const rows = all(
+        const rows = await all(
             `SELECT p.* FROM padroes p WHERE ${where.join(' AND ')}
              ORDER BY p.codigo_interno LIMIT ? OFFSET ?`,
             [...params, limite, offset]
         );
-        const total = get(`SELECT COUNT(*) c FROM padroes p WHERE ${where.join(' AND ')}`, params).c;
+        const total = Number((await get(`SELECT COUNT(*) c FROM padroes p WHERE ${where.join(' AND ')}`, params)).c);
         return { total, itens: rows.map(enriquecer) };
     });
 
     // ---- DETALHE COMPLETO (com históricos) ------------------------------
     router.get('/api/padroes/:id', async (ctx) => {
-        autenticar(ctx);
-        const p = get(`SELECT * FROM padroes WHERE id = ? AND excluido_em IS NULL`, [ctx.params.id]);
+        await autenticar(ctx);
+        const p = await get(`SELECT * FROM padroes WHERE id = ? AND excluido_em IS NULL`, [ctx.params.id]);
         if (!p) throw new HttpError(404, 'Padrão não encontrado.');
         return {
             ...enriquecer(p),
-            movimentacoes: all(`SELECT * FROM movimentacoes WHERE padrao_id = ? AND excluido_em IS NULL
+            movimentacoes: await all(`SELECT * FROM movimentacoes WHERE padrao_id = ? AND excluido_em IS NULL
                                 ORDER BY data_retirada DESC`, [p.id]),
-            calibracoes: all(`SELECT * FROM calibracoes WHERE padrao_id = ? AND excluido_em IS NULL
+            calibracoes: await all(`SELECT * FROM calibracoes WHERE padrao_id = ? AND excluido_em IS NULL
                               ORDER BY data_calibracao DESC`, [p.id]),
-            checagens: all(`SELECT * FROM checagens WHERE padrao_id = ? AND excluido_em IS NULL
+            checagens: await all(`SELECT * FROM checagens WHERE padrao_id = ? AND excluido_em IS NULL
                             ORDER BY data_checagem DESC`, [p.id]),
-            anexos: all(`SELECT * FROM anexos WHERE entidade='padrao' AND entidade_id = ? AND excluido_em IS NULL`, [p.id]),
+            anexos: await all(`SELECT * FROM anexos WHERE entidade='padrao' AND entidade_id = ? AND excluido_em IS NULL`, [p.id]),
         };
     });
 
     // ---- BUSCAR POR UUID (leitura de QR Code) ---------------------------
     router.get('/api/padroes/uuid/:uuid', async (ctx) => {
-        autenticar(ctx);
-        const p = get(`SELECT * FROM padroes WHERE uuid = ? AND excluido_em IS NULL`, [ctx.params.uuid]);
+        await autenticar(ctx);
+        const p = await get(`SELECT * FROM padroes WHERE uuid = ? AND excluido_em IS NULL`, [ctx.params.uuid]);
         if (!p) throw new HttpError(404, 'Padrão não encontrado para este QR Code.');
         return enriquecer(p);
     });
 
     // ---- CRIAR -----------------------------------------------------------
     router.post('/api/padroes', async (ctx) => {
-        exigirEscrita(ctx);
+        await exigirEscrita(ctx);
         const b = ctx.body || {};
         if (!b.codigo_interno) throw new HttpError(400, 'Código interno é obrigatório.');
-        if (get(`SELECT id FROM padroes WHERE codigo_interno = ?`, [b.codigo_interno]))
+        if (await get(`SELECT id FROM padroes WHERE codigo_interno = ?`, [b.codigo_interno]))
             throw new HttpError(409, 'Já existe um padrão com este código interno.');
 
         const dados = {};
@@ -123,16 +123,16 @@ export function register(router) {
         const cols = [...CAMPOS, 'uuid', 'criado_por', 'atualizado_por'];
         const vals = [...CAMPOS.map((c) => dados[c]), novoUuid, ctx.usuario.id, ctx.usuario.id];
         const ph = cols.map(() => '?').join(',');
-        const r = run(`INSERT INTO padroes (${cols.join(',')}) VALUES (${ph})`, vals);
-        registrarAuditoria(ctx, 'CRIAR', 'padroes', r.lastInsertRowid, `Padrão ${b.codigo_interno} criado`, null, dados);
+        const r = await run(`INSERT INTO padroes (${cols.join(',')}) VALUES (${ph})`, vals);
+        await registrarAuditoria(ctx, 'CRIAR', 'padroes', r.lastInsertRowid, `Padrão ${b.codigo_interno} criado`, null, dados);
         ctx.status = 201;
-        return get(`SELECT * FROM padroes WHERE id = ?`, [r.lastInsertRowid]);
+        return await get(`SELECT * FROM padroes WHERE id = ?`, [r.lastInsertRowid]);
     });
 
     // ---- EDITAR ----------------------------------------------------------
     router.put('/api/padroes/:id', async (ctx) => {
-        exigirEscrita(ctx);
-        const antes = get(`SELECT * FROM padroes WHERE id = ? AND excluido_em IS NULL`, [ctx.params.id]);
+        await exigirEscrita(ctx);
+        const antes = await get(`SELECT * FROM padroes WHERE id = ? AND excluido_em IS NULL`, [ctx.params.id]);
         if (!antes) throw new HttpError(404, 'Padrão não encontrado.');
         const b = ctx.body || {};
         const sets = [], vals = [];
@@ -142,32 +142,32 @@ export function register(router) {
         if (!sets.length) throw new HttpError(400, 'Nenhum campo para atualizar.');
         sets.push(`atualizado_em = datetime('now')`, `atualizado_por = ?`);
         vals.push(ctx.usuario.id, ctx.params.id);
-        run(`UPDATE padroes SET ${sets.join(', ')} WHERE id = ?`, vals);
-        const depois = get(`SELECT * FROM padroes WHERE id = ?`, [ctx.params.id]);
-        registrarAuditoria(ctx, 'EDITAR', 'padroes', antes.id, `Padrão ${antes.codigo_interno} editado`, antes, depois);
+        await run(`UPDATE padroes SET ${sets.join(', ')} WHERE id = ?`, vals);
+        const depois = await get(`SELECT * FROM padroes WHERE id = ?`, [ctx.params.id]);
+        await registrarAuditoria(ctx, 'EDITAR', 'padroes', antes.id, `Padrão ${antes.codigo_interno} editado`, antes, depois);
         return depois;
     });
 
     // ---- EXCLUIR (lógico, com dupla confirmação e motivo) ---------------
     router.delete('/api/padroes/:id', async (ctx) => {
-        exigirEscrita(ctx);
-        const p = get(`SELECT * FROM padroes WHERE id = ? AND excluido_em IS NULL`, [ctx.params.id]);
+        await exigirEscrita(ctx);
+        const p = await get(`SELECT * FROM padroes WHERE id = ? AND excluido_em IS NULL`, [ctx.params.id]);
         if (!p) throw new HttpError(404, 'Padrão não encontrado.');
         const { confirmar, motivo } = ctx.body || {};
         if (confirmar !== true)
             throw new HttpError(400, 'Confirmação dupla obrigatória para exclusão (envie confirmar: true).');
         if (!motivo) throw new HttpError(400, 'Informe o motivo da exclusão (exigência de auditoria).');
-        run(`UPDATE padroes SET excluido_em = datetime('now'), excluido_por = ?, motivo_exclusao = ? WHERE id = ?`,
+        await run(`UPDATE padroes SET excluido_em = datetime('now'), excluido_por = ?, motivo_exclusao = ? WHERE id = ?`,
             [ctx.usuario.id, motivo, p.id]);
-        registrarAuditoria(ctx, 'EXCLUIR', 'padroes', p.id, `Exclusão lógica: ${motivo}`, p, null);
+        await registrarAuditoria(ctx, 'EXCLUIR', 'padroes', p.id, `Exclusão lógica: ${motivo}`, p, null);
         return { ok: true, mensagem: 'Padrão movido para a lixeira. Pode ser recuperado por um administrador.' };
     });
 
     // ---- LISTA DE GRANDEZAS (para filtros do frontend) ------------------
     router.get('/api/padroes-grandezas', async (ctx) => {
-        autenticar(ctx);
-        return all(`SELECT DISTINCT grandeza FROM padroes
+        await autenticar(ctx);
+        return (await all(`SELECT DISTINCT grandeza FROM padroes
                     WHERE grandeza IS NOT NULL AND grandeza <> '' AND excluido_em IS NULL
-                    ORDER BY grandeza`).map((r) => r.grandeza);
+                    ORDER BY grandeza`)).map((r) => r.grandeza);
     });
 }

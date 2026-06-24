@@ -13,18 +13,15 @@ function dias(n) {
     return d.toISOString().slice(0, 10);
 }
 
-export function seed() {
+export async function seed() {
     // ---- USUÁRIOS (um por perfil) ---------------------------------------
     const usuarios = [
         ['Administrador do Sistema', 'admin@metrocontrol.com', 'Admin@123', 'administrador', 'Gerente da Qualidade'],
-        ['Maria Gestora', 'gestor@metrocontrol.com', 'Gestor@123', 'gestor', 'Coordenadora de Metrologia'],
-        ['João Técnico', 'tecnico@metrocontrol.com', 'Tecnico@123', 'tecnico', 'Técnico em Metrologia'],
-        ['Ana Auditora', 'auditor@metrocontrol.com', 'Auditor@123', 'auditor', 'Auditora Interna'],
-        ['Carlos Visualizador', 'viewer@metrocontrol.com', 'Viewer@123', 'visualizador', 'Estagiário'],
+        ['João Controle', 'controle@metrocontrol.com', 'Controle@123', 'controle_padroes', 'Técnico em Metrologia'],
     ];
     const idUsuario = {};
     for (const [nome, email, senha, perfil, cargo] of usuarios) {
-        const r = run(
+        const r = await run(
             `INSERT INTO usuarios (nome, email, senha_hash, perfil, cargo, ativo) VALUES (?,?,?,?,?,1)`,
             [nome, email, hashSenha(senha), perfil, cargo]);
         idUsuario[perfil] = r.lastInsertRowid;
@@ -39,7 +36,7 @@ export function seed() {
     ];
     const idCliente = [];
     for (const [nome, doc, contato, email, tel] of clientes) {
-        const r = run(`INSERT INTO clientes (nome, documento, contato, email, telefone, criado_por, atualizado_por)
+        const r = await run(`INSERT INTO clientes (nome, documento, contato, email, telefone, criado_por, atualizado_por)
                        VALUES (?,?,?,?,?,?,?)`, [nome, doc, contato, email, tel, admin, admin]);
         idCliente.push(r.lastInsertRowid);
     }
@@ -55,7 +52,7 @@ export function seed() {
     ];
     const idNorma = [];
     for (const [codigo, nome, rev, org, area, emissao] of normas) {
-        const r = run(
+        const r = await run(
             `INSERT INTO normas (codigo, nome, revisao, organismo, area_aplicacao, data_emissao, status, criado_por, atualizado_por)
              VALUES (?,?,?,?,?,?, 'vigente', ?, ?)`,
             [codigo, nome, rev, org, area, emissao, admin, admin]);
@@ -64,7 +61,6 @@ export function seed() {
 
     // ---- PADRÕES (com datas variadas: vencidos, a vencer, ok) -----------
     const padroes = [
-        // codigo, serie, fab, modelo, tipo, grandeza, faixa, resol, exatidao, classe, local, status, ult_cal(dias), prox_cal(dias), ult_chk(dias), prox_chk(dias)
         ['PAD-0001', 'SN-784512', 'Mitutoyo', 'CD-6 ASX', 'Paquímetro Digital', 'Comprimento', '0 a 150 mm', '0,01 mm', '± 0,02 mm', 'Classe 1', 'Sala de Metrologia — Armário A1', 'disponivel', -330, 35, -150, 30],
         ['PAD-0002', 'SN-114478', 'Mitutoyo', '293-340-30', 'Micrômetro Externo', 'Comprimento', '0 a 25 mm', '0,001 mm', '± 0,002 mm', 'Classe 1', 'Sala de Metrologia — Armário A1', 'disponivel', -360, -5, -180, 10],
         ['PAD-0003', 'SN-552210', 'Zurich', 'BG-2200', 'Balança Analítica', 'Massa', '0 a 2200 g', '0,01 g', '± 0,03 g', 'Classe II', 'Laboratório de Massa', 'em_uso', -200, 165, -90, 95],
@@ -80,7 +76,7 @@ export function seed() {
     ];
     const idPadrao = [];
     for (const p of padroes) {
-        const r = run(
+        const r = await run(
             `INSERT INTO padroes
                (codigo_interno, numero_serie, fabricante, modelo, tipo_instrumento, grandeza,
                 faixa_indicacao, resolucao, exatidao, classe_metrologica, localizacao, status,
@@ -95,7 +91,7 @@ export function seed() {
     // ---- CALIBRAÇÕES (histórico) ----------------------------------------
     const labs = ['RBC — Lab Acreditado 1234', 'Inmetro', 'RBC — CalibraTech', 'RBC — MetroLab'];
     for (let i = 0; i < idPadrao.length; i++) {
-        run(`INSERT INTO calibracoes (padrao_id, data_calibracao, data_proxima, numero_certificado,
+        await run(`INSERT INTO calibracoes (padrao_id, data_calibracao, data_proxima, numero_certificado,
                  laboratorio, rastreabilidade, resultado, incerteza, custo, criado_por, atualizado_por)
              VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
             [idPadrao[i], dias(padroes[i][12]), dias(padroes[i][13]),
@@ -106,12 +102,12 @@ export function seed() {
 
     // ---- CHECAGENS -------------------------------------------------------
     for (let i = 0; i < 6; i++) {
-        run(`INSERT INTO checagens (padrao_id, data_checagem, data_proxima, metodo, resultado,
+        await run(`INSERT INTO checagens (padrao_id, data_checagem, data_proxima, metodo, resultado,
                  responsavel_id, responsavel_nome, criado_por, atualizado_por)
              VALUES (?,?,?,?,?,?,?,?,?)`,
             [idPadrao[i], dias(padroes[i][14]), dias(padroes[i][15]),
              'Comparação com padrão de referência', i === 8 ? 'nao_conforme' : 'conforme',
-             idUsuario.tecnico, 'João Técnico', admin, admin]);
+             idUsuario.controle_padroes, 'João Controle', admin, admin]);
     }
 
     // ---- SERVIÇOS (com padrões e normas vinculados) ---------------------
@@ -122,41 +118,42 @@ export function seed() {
     ];
     const idServico = [];
     for (const s of servicos) {
-        const r = run(
+        const cli = await get(`SELECT nome FROM clientes WHERE id=?`, [s[3]]);
+        const r = await run(
             `INSERT INTO servicos (codigo, nome, status, cliente_id, cliente_nome, tecnico_id, tecnico_nome,
                  procedimento, data_inicio, data_conclusao, criado_por, atualizado_por)
              VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
-            [s[0], s[1], s[2], s[3], get(`SELECT nome FROM clientes WHERE id=?`, [s[3]]).nome,
-             idUsuario.tecnico, 'João Técnico', 'PROC-MET-001 — Procedimento técnico de calibração',
+            [s[0], s[1], s[2], s[3], cli.nome,
+             idUsuario.controle_padroes, 'João Controle', 'PROC-MET-001 — Procedimento técnico de calibração',
              s[4], s[5], admin, admin]);
         idServico.push(r.lastInsertRowid);
     }
     // Vínculos
-    run(`INSERT INTO servico_padroes (servico_id, padrao_id) VALUES (?,?)`, [idServico[0], idPadrao[0]]);
-    run(`INSERT INTO servico_padroes (servico_id, padrao_id) VALUES (?,?)`, [idServico[0], idPadrao[1]]);
-    run(`INSERT INTO servico_padroes (servico_id, padrao_id) VALUES (?,?)`, [idServico[1], idPadrao[2]]);
-    run(`INSERT INTO servico_normas (servico_id, norma_id) VALUES (?,?)`, [idServico[0], idNorma[0]]);
-    run(`INSERT INTO servico_normas (servico_id, norma_id) VALUES (?,?)`, [idServico[0], idNorma[3]]);
+    await run(`INSERT INTO servico_padroes (servico_id, padrao_id) VALUES (?,?)`, [idServico[0], idPadrao[0]]);
+    await run(`INSERT INTO servico_padroes (servico_id, padrao_id) VALUES (?,?)`, [idServico[0], idPadrao[1]]);
+    await run(`INSERT INTO servico_padroes (servico_id, padrao_id) VALUES (?,?)`, [idServico[1], idPadrao[2]]);
+    await run(`INSERT INTO servico_normas (servico_id, norma_id) VALUES (?,?)`, [idServico[0], idNorma[0]]);
+    await run(`INSERT INTO servico_normas (servico_id, norma_id) VALUES (?,?)`, [idServico[0], idNorma[3]]);
 
     // ---- MOVIMENTAÇÕES (uma aberta + uma fechada) -----------------------
-    run(`INSERT INTO movimentacoes (padrao_id, retirado_por, retirado_por_nome, data_retirada,
+    await run(`INSERT INTO movimentacoes (padrao_id, retirado_por, retirado_por_nome, data_retirada,
              cliente_id, cliente_nome, servico_id, motivo, local_utilizacao, status, criado_por, atualizado_por)
          VALUES (?,?,?,?,?,?,?,?,?, 'aberta', ?, ?)`,
-        [idPadrao[2], idUsuario.tecnico, 'João Técnico', dias(-3) + 'T08:30:00Z',
+        [idPadrao[2], idUsuario.controle_padroes, 'João Controle', dias(-3) + 'T08:30:00',
          idCliente[1], 'AutoPeças Beta S.A.', idServico[1], 'Verificação em campo',
          'Planta industrial Beta — Setor 3', admin, admin]);
 
-    run(`INSERT INTO movimentacoes (padrao_id, retirado_por, retirado_por_nome, data_retirada,
+    await run(`INSERT INTO movimentacoes (padrao_id, retirado_por, retirado_por_nome, data_retirada,
              cliente_id, cliente_nome, motivo, local_utilizacao, status,
              devolvido_por, devolvido_por_nome, data_devolucao, condicao_devolucao, criado_por, atualizado_por)
          VALUES (?,?,?,?,?,?,?,?, 'fechada', ?,?,?,?,?,?)`,
-        [idPadrao[10], idUsuario.tecnico, 'João Técnico', dias(-20) + 'T09:00:00Z',
+        [idPadrao[10], idUsuario.controle_padroes, 'João Controle', dias(-20) + 'T09:00:00',
          idCliente[0], 'Indústria Metalúrgica Alfa Ltda', 'Calibração no local',
-         'Indústria Alfa — Laboratório', idUsuario.tecnico, 'João Técnico',
-         dias(-18) + 'T16:00:00Z', 'otima', admin, admin]);
+         'Indústria Alfa — Laboratório', idUsuario.controle_padroes, 'João Controle',
+         dias(-18) + 'T16:00:00', 'otima', admin, admin]);
 
     // ---- CONFIGURAÇÕES ---------------------------------------------------
-    run(`INSERT OR REPLACE INTO configuracoes (chave, valor, descricao) VALUES
+    await run(`INSERT INTO configuracoes (chave, valor, descricao) VALUES
          ('nome_empresa', 'EXCELMETRO — Laboratório de Metrologia', 'Nome exibido no sistema'),
          ('email_alertas', '1', 'Enviar alertas de vencimento por e-mail'),
          ('dias_alerta', '30,15,7', 'Antecedência dos alertas em dias')`);

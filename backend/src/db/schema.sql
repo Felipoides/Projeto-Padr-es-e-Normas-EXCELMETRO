@@ -24,8 +24,8 @@ CREATE TABLE IF NOT EXISTS usuarios (
     nome            TEXT    NOT NULL,
     email           TEXT    NOT NULL UNIQUE,
     senha_hash      TEXT    NOT NULL,            -- scrypt: salt:hash (hex)
-    perfil          TEXT    NOT NULL DEFAULT 'visualizador'
-                        CHECK (perfil IN ('administrador','gestor','tecnico','auditor','visualizador')),
+    perfil          TEXT    NOT NULL DEFAULT 'controle_padroes'
+                        CHECK (perfil IN ('administrador','controle_padroes')),
     ativo           INTEGER NOT NULL DEFAULT 1,  -- 0/1
     telefone        TEXT,
     cargo           TEXT,

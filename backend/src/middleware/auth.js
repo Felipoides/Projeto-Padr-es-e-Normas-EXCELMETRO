@@ -7,11 +7,8 @@ import { get } from '../db/database.js';
 
 // Hierarquia de permissões. Quanto maior o número, mais poder.
 export const NIVEIS = {
-    visualizador: 1,
-    auditor: 2,
-    tecnico: 3,
-    gestor: 4,
-    administrador: 5,
+    controle_padroes: 1,
+    administrador: 2,
 };
 
 /**
@@ -19,14 +16,14 @@ export const NIVEIS = {
  * Popula ctx.usuario com os dados atuais do banco.
  * Lança HttpError 401 se inválido.
  */
-export function autenticar(ctx) {
+export async function autenticar(ctx) {
     const auth = ctx.req.headers['authorization'] || '';
     const token = auth.startsWith('Bearer ') ? auth.slice(7) : null;
     const payload = token ? verificarToken(token) : null;
     if (!payload) throw new HttpError(401, 'Não autenticado. Faça login.');
 
     // Recarrega o usuário (garante perfil/ativo atualizados e não excluído).
-    const usuario = get(
+    const usuario = await get(
         `SELECT id, nome, email, perfil, ativo FROM usuarios
          WHERE id = ? AND excluido_em IS NULL`, [payload.sub]
     );
@@ -37,10 +34,10 @@ export function autenticar(ctx) {
 
 /**
  * Garante que o usuário autenticado possua nível mínimo do perfil exigido.
- * Ex.: exigirPerfil(ctx, 'gestor')
+ * Ex.: await exigirPerfil(ctx, 'administrador')
  */
-export function exigirPerfil(ctx, perfilMinimo) {
-    if (!ctx.usuario) autenticar(ctx);
+export async function exigirPerfil(ctx, perfilMinimo) {
+    if (!ctx.usuario) await autenticar(ctx);
     const nivelUsuario = NIVEIS[ctx.usuario.perfil] || 0;
     const nivelExigido = NIVEIS[perfilMinimo] || 99;
     if (nivelUsuario < nivelExigido) {
@@ -49,9 +46,9 @@ export function exigirPerfil(ctx, perfilMinimo) {
 }
 
 /** Verifica se o perfil pode escrever (criar/editar/excluir). */
-export function exigirEscrita(ctx) {
-    if (!ctx.usuario) autenticar(ctx);
-    if (['visualizador', 'auditor'].includes(ctx.usuario.perfil)) {
-        throw new HttpError(403, 'Seu perfil tem acesso somente leitura.');
+export async function exigirEscrita(ctx) {
+    if (!ctx.usuario) await autenticar(ctx);
+    if (!['controle_padroes', 'administrador'].includes(ctx.usuario.perfil)) {
+        throw new HttpError(403, 'Seu perfil não tem permissão de escrita.');
     }
 }

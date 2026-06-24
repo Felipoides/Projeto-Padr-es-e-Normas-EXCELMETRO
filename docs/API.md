@@ -109,22 +109,21 @@ Tipos: `inventario`, `vencidos`, `em_uso`, `movimentacoes`, `calibracoes`,
 
 | Método | Endpoint | Descrição | Acesso |
 |--------|----------|-----------|--------|
-| GET | `/usuarios` | Listar usuários | gestor+ |
+| GET | `/usuarios` | Listar usuários | controle_padroes+ |
 | POST | `/usuarios` | Criar usuário | admin |
 | PUT | `/usuarios/:id` | Editar usuário | admin |
 | POST | `/usuarios/:id/senha` | Redefinir senha | admin |
 | DELETE | `/usuarios/:id` | Desativar/excluir | admin |
-| GET | `/auditoria?acao=&entidade=&usuario_id=&de=&ate=` | Trilha de auditoria | auditor+ |
+| GET | `/auditoria?acao=&entidade=&usuario_id=&de=&ate=` | Trilha de auditoria | controle_padroes+ |
 | GET | `/auditoria/timeline/:entidade/:id` | Linha do tempo de um registro | autenticado |
-| GET | `/lixeira` | Itens excluídos | gestor+ |
+| GET | `/lixeira` | Itens excluídos | admin |
 | POST | `/lixeira/:entidade/:id/restaurar` | Restaurar | admin |
 
 ---
 
 ## Níveis de acesso (RBAC)
 
-`visualizador (1) < auditor (2) < tecnico (3) < gestor (4) < administrador (5)`
+`controle_padroes (1) < administrador (2)`
 
-- **Somente leitura:** visualizador, auditor (não passam em `exigirEscrita`).
-- **Escrita operacional:** técnico, gestor, administrador.
-- **Administração de usuários e restauração:** administrador.
+- **Controle de Padrões:** opera padrões, movimentações, calibrações, normas, serviços, auditoria (leitura).
+- **Administrador:** acesso total — usuários, lixeira, restauração e todas as operações.

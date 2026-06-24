@@ -19,7 +19,7 @@ const ENTIDADES_LIXEIRA = {
 export function register(router) {
     // ====================  AUDITORIA  ====================================
     router.get('/api/auditoria', async (ctx) => {
-        exigirPerfil(ctx, 'auditor'); // auditor, gestor, administrador
+        await exigirPerfil(ctx, 'controle_padroes');
         const q = ctx.query;
         const where = ['1=1']; const params = [];
         if (q.acao)     { where.push('acao = ?'); params.push(q.acao); }
@@ -28,17 +28,17 @@ export function register(router) {
         if (q.de)  { where.push('criado_em >= ?'); params.push(q.de); }
         if (q.ate) { where.push('criado_em <= ?'); params.push(q.ate + ' 23:59:59'); }
         const limite = Math.min(parseInt(q.limite) || 200, 1000);
-        const itens = all(
+        const itens = await all(
             `SELECT * FROM auditoria WHERE ${where.join(' AND ')} ORDER BY id DESC LIMIT ?`,
             [...params, limite]);
-        const total = get(`SELECT COUNT(*) c FROM auditoria WHERE ${where.join(' AND ')}`, params).c;
+        const total = Number((await get(`SELECT COUNT(*) c FROM auditoria WHERE ${where.join(' AND ')}`, params)).c);
         return { total, itens };
     });
 
     // Linha do tempo de eventos de um padrão específico (timeline).
     router.get('/api/auditoria/timeline/:entidade/:id', async (ctx) => {
-        autenticar(ctx);
-        return all(
+        await autenticar(ctx);
+        return await all(
             `SELECT acao, descricao, usuario_nome, criado_em FROM auditoria
              WHERE entidade = ? AND entidade_id = ? ORDER BY id DESC`,
             [ctx.params.entidade, ctx.params.id]);
@@ -46,10 +46,10 @@ export function register(router) {
 
     // ====================  LIXEIRA  ======================================
     router.get('/api/lixeira', async (ctx) => {
-        exigirPerfil(ctx, 'gestor');
+        await exigirPerfil(ctx, 'administrador');
         const resultado = [];
         for (const [tabela, rotulo] of Object.entries(ENTIDADES_LIXEIRA)) {
-            const linhas = all(
+            const linhas = await all(
                 `SELECT id, ${rotulo} AS rotulo, excluido_em, excluido_por, motivo_exclusao
                  FROM ${tabela} WHERE excluido_em IS NOT NULL ORDER BY excluido_em DESC`);
             for (const l of linhas) resultado.push({ entidade: tabela, ...l });
@@ -60,14 +60,14 @@ export function register(router) {
 
     // Restaurar registro da lixeira (somente administrador).
     router.post('/api/lixeira/:entidade/:id/restaurar', async (ctx) => {
-        exigirPerfil(ctx, 'administrador');
+        await exigirPerfil(ctx, 'administrador');
         const tabela = ctx.params.entidade;
         if (!ENTIDADES_LIXEIRA[tabela]) throw new HttpError(400, 'Entidade inválida.');
-        const reg = get(`SELECT * FROM ${tabela} WHERE id = ? AND excluido_em IS NOT NULL`, [ctx.params.id]);
+        const reg = await get(`SELECT * FROM ${tabela} WHERE id = ? AND excluido_em IS NOT NULL`, [ctx.params.id]);
         if (!reg) throw new HttpError(404, 'Registro não encontrado na lixeira.');
-        run(`UPDATE ${tabela} SET excluido_em=NULL, excluido_por=NULL, motivo_exclusao=NULL WHERE id = ?`,
+        await run(`UPDATE ${tabela} SET excluido_em=NULL, excluido_por=NULL, motivo_exclusao=NULL WHERE id = ?`,
             [ctx.params.id]);
-        registrarAuditoria(ctx, 'RESTAURAR', tabela, Number(ctx.params.id),
+        await registrarAuditoria(ctx, 'RESTAURAR', tabela, Number(ctx.params.id),
             `Registro restaurado da lixeira`);
         return { ok: true, mensagem: 'Registro restaurado com sucesso.' };
     });

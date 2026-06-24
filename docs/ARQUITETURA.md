@@ -71,7 +71,7 @@ flowchart LR
 | **Hash de senha** | `scrypt` (node:crypto) com salt aleatório por usuário; comparação em tempo constante. |
 | **Sessão** | **JWT HS256** assinado com `JWT_SECRET`, expiração de 8 h, validado a cada request. |
 | **2FA** | **TOTP RFC 6238** (HMAC-SHA1, janela ±30 s), compatível com Google Authenticator/Authy. |
-| **RBAC** | 5 perfis com níveis hierárquicos; verificação no servidor (e ocultação no cliente). |
+| **RBAC** | 2 perfis hierárquicos (Controle de Padrões, Administrador); verificação no servidor (e ocultação no cliente). |
 | **Anti-força-bruta** | Contador de tentativas + bloqueio temporário de 15 min. |
 | **Auditoria** | Toda ação relevante grava usuário, IP, user-agent e snapshots. |
 | **Proteção de dados** | Exclusão lógica + dupla confirmação + motivo + lixeira + restauração. |

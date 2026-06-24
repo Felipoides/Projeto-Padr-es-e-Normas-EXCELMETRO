@@ -29,9 +29,9 @@ function alternarTema() {
 aplicarTema(localStorage.getItem('metrocontrol_theme') || 'light');
 
 // ---- Permissões no frontend ------------------------------------------------
-const podeEscrever = () => !['visualizador', 'auditor'].includes(auth.user?.perfil);
+const podeEscrever = () => ['controle_padroes', 'administrador'].includes(auth.user?.perfil);
 const ehNivel = (p) => {
-    const n = { visualizador: 1, auditor: 2, tecnico: 3, gestor: 4, administrador: 5 };
+    const n = { controle_padroes: 1, administrador: 2 };
     return (n[auth.user?.perfil] || 0) >= (n[p] || 99);
 };
 
@@ -83,10 +83,7 @@ function renderLogin() {
           <div class="demo-hint">
             <b>Contas de demonstração</b> (senha entre parênteses):<br>
             admin@metrocontrol.com (Admin@123) — Administrador<br>
-            gestor@metrocontrol.com (Gestor@123) — Gestor<br>
-            tecnico@metrocontrol.com (Tecnico@123) — Técnico<br>
-            auditor@metrocontrol.com (Auditor@123) — Auditor<br>
-            viewer@metrocontrol.com (Viewer@123) — Visualizador
+            controle@metrocontrol.com (Controle@123) — Controle de Padrões
           </div>
         </div>
       </div>
@@ -133,9 +130,11 @@ const NAV = [
     { id: 'mapa', label: 'Mapa de Localização', ic: 'map' },
     { id: 'relatorios', label: 'Relatórios', ic: 'report' },
     { grupo: 'Administração' },
-    { id: 'usuarios', label: 'Usuários & Perfis', ic: 'users', nivel: 'gestor' },
-    { id: 'auditoria', label: 'Auditoria', ic: 'shield', nivel: 'auditor' },
-    { id: 'lixeira', label: 'Lixeira', ic: 'trash', nivel: 'gestor' },
+    { id: 'usuarios', label: 'Usuários & Perfis', ic: 'users', nivel: 'administrador' },
+    { id: 'auditoria', label: 'Auditoria', ic: 'shield', nivel: 'controle_padroes' },
+    { id: 'lixeira', label: 'Lixeira', ic: 'trash', nivel: 'administrador' },
+    { id: 'backup', label: 'Backup & Restauração', ic: 'shield', nivel: 'administrador' },
+    { id: 'dbexplorer', label: 'Banco de Dados', ic: 'tool', nivel: 'administrador' },
 ];
 
 function renderShell() {
@@ -216,7 +215,7 @@ const ROTAS = {
     dashboard: viewDashboard, padroes: viewPadroes, movimentacoes: viewMovimentacoes,
     vencimentos: viewVencimentos, normas: viewNormas, servicos: viewServicos,
     mapa: viewMapa, relatorios: viewRelatorios, usuarios: viewUsuarios,
-    auditoria: viewAuditoria, lixeira: viewLixeira,
+    auditoria: viewAuditoria, lixeira: viewLixeira, backup: viewBackup, dbexplorer: viewDbExplorer,
 };
 
 async function rotear() {
@@ -415,7 +414,7 @@ async function viewPadraoDetalhe(id) {
           ${podeEscrever() ? `<button class="btn btn-ghost" id="b-mov">${icon('move')} Movimentar</button>` : ''}
           ${podeEscrever() ? `<button class="btn btn-ghost" id="b-cal">${icon('calendar')} Registrar calibração</button>` : ''}
           ${podeEscrever() ? `<button class="btn btn-primary" id="b-edit">${icon('edit')} Editar</button>` : ''}
-          ${ehNivel('tecnico') ? `<button class="btn btn-danger" id="b-del">${icon('trash')}</button>` : ''}
+          ${ehNivel('controle_padroes') ? `<button class="btn btn-danger" id="b-del">${icon('trash')}</button>` : ''}
         </div>
       </div>
       <div class="grid-2" style="margin-bottom:16px">
@@ -849,7 +848,7 @@ async function viewUsuarios() {
     const linhas = us.map((u) => `<tr>
         <td><div style="display:flex;align-items:center;gap:10px"><div class="avatar" style="width:32px;height:32px;font-size:12px">${(u.nome||'?').split(' ').map(x=>x[0]).slice(0,2).join('').toUpperCase()}</div>
           <div><div class="t-strong">${escapeHtml(u.nome)}</div><div class="t-muted">${escapeHtml(u.email)}</div></div></div></td>
-        <td>${badge({administrador:['Administrador','b-purple'],gestor:['Gestor','b-blue'],tecnico:['Técnico','b-sky'],auditor:['Auditor','b-amber'],visualizador:['Visualizador','b-gray']}, u.perfil)}</td>
+        <td>${badge({administrador:['Administrador','b-purple'],controle_padroes:['Controle de Padrões','b-sky']}, u.perfil)}</td>
         <td>${escapeHtml(u.cargo||'—')}</td>
         <td>${u.ativo ? '<span class="badge b-green">Ativo</span>' : '<span class="badge b-gray">Inativo</span>'}</td>
         <td>${u.twofa_ativo ? '<span class="badge b-green">2FA on</span>' : '<span class="t-muted">—</span>'}</td>
@@ -861,11 +860,8 @@ async function viewUsuarios() {
       <div class="card"><div class="table-wrap"><table><thead><tr><th>Usuário</th><th>Perfil</th><th>Cargo</th><th>Situação</th><th>2FA</th><th>Último acesso</th><th></th></tr></thead><tbody>${linhas}</tbody></table></div></div>
       <div class="card" style="margin-top:16px"><div class="card-head"><h3>Perfis e permissões</h3></div><div class="card-body">
         <div class="dl">
-          <div class="dl-item"><div class="k">Administrador</div><div class="v">Acesso total: usuários, exclusões, restauração da lixeira, auditoria.</div></div>
-          <div class="dl-item"><div class="k">Gestor</div><div class="v">Gerencia padrões/normas/serviços, vê usuários, auditoria e lixeira.</div></div>
-          <div class="dl-item"><div class="k">Técnico</div><div class="v">Cadastra e movimenta padrões, registra calibrações e checagens.</div></div>
-          <div class="dl-item"><div class="k">Auditor</div><div class="v">Somente leitura + acesso à trilha de auditoria.</div></div>
-          <div class="dl-item"><div class="k">Visualizador</div><div class="v">Somente leitura dos módulos operacionais.</div></div>
+          <div class="dl-item"><div class="k">Administrador</div><div class="v">Acesso total: usuários, exclusões, restauração da lixeira, auditoria e todas as operações.</div></div>
+          <div class="dl-item"><div class="k">Controle de Padrões</div><div class="v">Cadastra, movimenta e calibra padrões, registra checagens, gerencia normas e serviços, acessa auditoria.</div></div>
         </div></div></div></div>`);
     const nv = c.querySelector('#novo'); if (nv) nv.onclick = () => formUsuario();
     c.querySelectorAll('[data-ed]').forEach((b) => b.onclick = () => formUsuario(us.find((u) => u.id == b.dataset.ed)));
@@ -874,7 +870,7 @@ async function viewUsuarios() {
 }
 
 function formUsuario(u = null) {
-    const perfis = ['administrador', 'gestor', 'tecnico', 'auditor', 'visualizador'];
+    const perfis = ['administrador', 'controle_padroes'];
     const body = el(`<form class="form-grid">
       <div class="field"><label>Nome *</label><input name="nome" value="${escapeHtml(u?.nome||'')}"></div>
       <div class="field"><label>E-mail *</label><input type="email" name="email" value="${escapeHtml(u?.email||'')}" ${u?'disabled':''}></div>
@@ -950,6 +946,330 @@ async function viewLixeira() {
         const conf = await confirmar({ title: 'Restaurar registro', message: 'Deseja restaurar este registro da lixeira?' });
         if (conf) { try { await api.post(`/lixeira/${ent}/${id}/restaurar`); toast('Registro restaurado.'); viewLixeira(); } catch (e) { toast(e.message, 'err'); } }
     });
+    setContent(c);
+}
+
+// ============================================================================
+//  BACKUP & RESTAURAÇÃO
+// ============================================================================
+async function viewBackup() {
+    loading();
+    const info = await api.get('/backup/info');
+    const tabelasHtml = Object.entries(info.tabelas).map(([t, n]) =>
+        `<tr><td class="t-strong">${escapeHtml(t)}</td><td>${n}</td></tr>`).join('');
+
+    const c = el(`<div>
+      <div class="page-head">
+        <div class="ph-text">
+          <h2>Backup & Restauração</h2>
+          <p>Banco atual: <span class="badge b-sky">${escapeHtml(info.banco)}</span> — ${info.total_registros} registros no total</p>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
+        <div class="card" style="padding:24px">
+          <h3 style="margin-bottom:12px">${icon('report')} Exportar Backup</h3>
+          <p style="margin-bottom:16px;color:var(--text-2)">Baixa um arquivo JSON com <b>todos os dados</b> do sistema. Guarde este arquivo em local seguro.</p>
+          <button class="btn btn-primary" id="btn-exportar">${icon('report')} Exportar backup agora</button>
+        </div>
+        <div class="card" style="padding:24px">
+          <h3 style="margin-bottom:12px">${icon('restore')} Restaurar Backup</h3>
+          <p style="margin-bottom:16px;color:var(--text-2)">Carrega um arquivo JSON de backup. <b>Substitui todos os dados atuais!</b></p>
+          <input type="file" id="inp-backup" accept=".json" style="display:none">
+          <button class="btn btn-danger" id="btn-restaurar">${icon('restore')} Selecionar arquivo de backup</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 style="padding:16px 16px 0">${icon('shield')} Registros por tabela</h3>
+        <div class="table-wrap">
+          <table><thead><tr><th>Tabela</th><th>Registros</th></tr></thead>
+          <tbody>${tabelasHtml}</tbody></table>
+        </div>
+      </div>
+    </div>`);
+
+    c.querySelector('#btn-exportar').onclick = async () => {
+        try {
+            toast('Gerando backup...');
+            const resp = await fetch('/api/backup/exportar', {
+                headers: { 'Authorization': 'Bearer ' + auth.token }
+            });
+            if (!resp.ok) { const e = await resp.json(); throw new Error(e.erro); }
+            const blob = await resp.blob();
+            const cd = resp.headers.get('content-disposition') || '';
+            const nome = cd.match(/filename="(.+?)"/)?.[1] || 'metrocontrol-backup.json';
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = nome;
+            a.click();
+            URL.revokeObjectURL(a.href);
+            toast('Backup baixado com sucesso!');
+        } catch (e) { toast(e.message, 'err'); }
+    };
+
+    const inpFile = c.querySelector('#inp-backup');
+    c.querySelector('#btn-restaurar').onclick = () => inpFile.click();
+    inpFile.onchange = async () => {
+        const file = inpFile.files[0];
+        if (!file) return;
+        try {
+            const texto = await file.text();
+            const dados = JSON.parse(texto);
+            if (!dados.metrocontrol_backup) { toast('Arquivo inválido — não é um backup MetroControl.', 'err'); return; }
+            const totalReg = dados.total_registros || '?';
+            const dataBackup = dados.criado_em ? fmtDataHora(dados.criado_em) : '?';
+            const conf = await confirmar({
+                title: 'Restaurar backup',
+                message: `Tem certeza? Todos os dados atuais serão SUBSTITUÍDOS!\n\nBackup de: ${dataBackup}\nRegistros: ${totalReg}\nOrigem: ${dados.banco || '?'}`,
+                danger: true,
+            });
+            if (!conf) return;
+            toast('Restaurando backup...');
+            dados.confirmar = true;
+            const r = await api.post('/backup/restaurar', dados);
+            toast(r.mensagem || 'Backup restaurado!');
+            if (r.erros?.length) console.warn('Erros na restauração:', r.erros);
+            viewBackup();
+        } catch (e) { toast(e.message || 'Erro ao restaurar backup.', 'err'); }
+    };
+
+    setContent(c);
+}
+
+// ============================================================================
+//  EXPLORADOR DO BANCO DE DADOS
+// ============================================================================
+async function viewDbExplorer() {
+    loading();
+    const info = await api.get('/db/tabelas');
+
+    const c = el(`<div>
+      <div class="page-head">
+        <div class="ph-text">
+          <h2>${icon('tool')} Banco de Dados</h2>
+          <p>Explorador do banco <span class="badge b-sky">${escapeHtml(info.banco)}</span> — ${info.tabelas.reduce((s,t) => s + t.registros, 0)} registros em ${info.tabelas.length} tabelas</p>
+        </div>
+      </div>
+
+      <div class="db-explorer" style="display:grid;grid-template-columns:240px 1fr;gap:16px;min-height:500px">
+        <!-- Sidebar: lista de tabelas -->
+        <div class="card" style="padding:0;overflow:auto;max-height:calc(100vh - 200px)">
+          <div style="padding:12px 16px;border-bottom:1px solid var(--border);font-weight:600;color:var(--text-2)">
+            Tabelas (${info.tabelas.length})
+          </div>
+          <div id="db-tabelas-lista">
+            ${info.tabelas.map(t => `
+              <a href="#" class="db-tabela-item" data-tabela="${t.nome}" style="display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid var(--border);text-decoration:none;color:var(--text-1);transition:background .15s;cursor:pointer">
+                <span style="font-weight:500">${escapeHtml(t.nome)}</span>
+                <span class="badge b-gray" style="font-size:11px">${t.registros}</span>
+              </a>
+            `).join('')}
+          </div>
+        </div>
+
+        <!-- Área principal -->
+        <div id="db-main" class="card" style="padding:0;overflow:auto;max-height:calc(100vh - 200px)">
+          <div style="padding:40px;text-align:center;color:var(--text-3)">
+            ${icon('tool')}
+            <p style="margin-top:12px">Selecione uma tabela ao lado para ver seus dados</p>
+            <p style="margin-top:20px;font-size:13px;color:var(--text-3)">Ou use o console SQL abaixo para consultas personalizadas</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Console SQL -->
+      <div class="card" style="margin-top:16px;padding:0">
+        <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+          <span style="font-weight:600;color:var(--text-2)">${icon('report')} Console SQL</span>
+          <span class="t-muted" style="font-size:12px">Apenas SELECT — máximo 500 linhas</span>
+        </div>
+        <div style="padding:16px">
+          <textarea id="db-sql" rows="3" placeholder="SELECT * FROM padroes WHERE status = 'disponivel' LIMIT 10" style="width:100%;font-family:monospace;font-size:13px;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-2);color:var(--text-1);resize:vertical"></textarea>
+          <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
+            <button class="btn btn-primary" id="db-executar">${icon('check')} Executar</button>
+            <span id="db-query-info" class="t-muted" style="font-size:12px"></span>
+          </div>
+        </div>
+        <div id="db-query-resultado" style="overflow:auto;max-height:400px"></div>
+      </div>
+    </div>`);
+
+    // ---- Clicar em tabela ----
+    let tabelaAtiva = null;
+    c.querySelectorAll('.db-tabela-item').forEach(a => {
+        a.onmouseenter = () => a.style.background = 'var(--bg-2)';
+        a.onmouseleave = () => { if (a.dataset.tabela !== tabelaAtiva) a.style.background = ''; };
+        a.onclick = async (e) => {
+            e.preventDefault();
+            c.querySelectorAll('.db-tabela-item').forEach(x => { x.style.background = ''; x.style.fontWeight = ''; });
+            a.style.background = 'var(--primary-bg)';
+            a.style.fontWeight = '600';
+            tabelaAtiva = a.dataset.tabela;
+            await carregarTabela(a.dataset.tabela, 1);
+        };
+    });
+
+    async function carregarTabela(nome, pagina, ordenar, direcao, busca) {
+        const main = c.querySelector('#db-main');
+        main.innerHTML = '<div style="padding:40px;text-align:center"><div class="spinner"></div></div>';
+
+        try {
+            const qs = new URLSearchParams({ pagina, por_pagina: 50, ordenar: ordenar || 'id', direcao: direcao || 'ASC' });
+            if (busca) qs.set('busca', busca);
+            const dados = await api.get(`/db/tabelas/${nome}/dados?${qs}`);
+            const estrutura = await api.get(`/db/tabelas/${nome}/estrutura`);
+
+            const colInfoMap = {};
+            estrutura.colunas.forEach(col => { colInfoMap[col.nome] = col; });
+
+            const cabecalhos = dados.colunas.map(col => {
+                const info = colInfoMap[col] || {};
+                const tipoLabel = info.tipo || '';
+                const isOrdenado = (ordenar || 'id') === col;
+                const proxDir = isOrdenado && direcao !== 'DESC' ? 'DESC' : 'ASC';
+                const seta = isOrdenado ? (direcao === 'DESC' ? ' ↓' : ' ↑') : '';
+                return `<th class="db-th-sort" data-col="${col}" data-dir="${proxDir}" style="cursor:pointer;white-space:nowrap;user-select:none" title="${tipoLabel}${info.nulo === 'NO' ? ' NOT NULL' : ''}">${escapeHtml(col)}${seta}</th>`;
+            }).join('');
+
+            const linhas = dados.dados.map(row => {
+                return '<tr>' + dados.colunas.map(col => {
+                    const v = row[col];
+                    if (v === null) return '<td class="t-muted" style="font-style:italic;font-size:12px">NULL</td>';
+                    const s = String(v);
+                    const truncado = s.length > 80 ? escapeHtml(s.slice(0, 80)) + '…' : escapeHtml(s);
+                    return `<td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(s)}">${truncado}</td>`;
+                }).join('') + '</tr>';
+            }).join('') || '<tr><td colspan="' + (dados.colunas.length || 1) + '"><div class="empty">Nenhum registro encontrado</div></td></tr>';
+
+            const paginacao = dados.totalPaginas > 1 ? `
+              <div style="display:flex;gap:6px;align-items:center;justify-content:center;padding:12px">
+                ${pagina > 1 ? `<button class="btn btn-sm btn-ghost db-pag" data-p="${pagina-1}">${icon('check')} Anterior</button>` : ''}
+                <span class="t-muted" style="font-size:13px">Página ${pagina} de ${dados.totalPaginas} (${dados.total} registros)</span>
+                ${pagina < dados.totalPaginas ? `<button class="btn btn-sm btn-ghost db-pag" data-p="${pagina+1}">Próxima ${icon('check')}</button>` : ''}
+              </div>` : `<div style="padding:8px 16px;text-align:center"><span class="t-muted" style="font-size:12px">${dados.total} registros</span></div>`;
+
+            main.innerHTML = `
+              <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+                <div style="display:flex;align-items:center;gap:10px">
+                  <span style="font-weight:600;font-size:15px">${escapeHtml(nome)}</span>
+                  <span class="badge b-sky">${dados.total} registros</span>
+                  <span class="badge b-gray">${estrutura.colunas.length} colunas</span>
+                </div>
+                <div style="display:flex;gap:8px;align-items:center">
+                  <input type="text" id="db-busca" placeholder="Buscar..." value="${escapeHtml(busca || '')}" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--bg-2);color:var(--text-1);width:200px">
+                  <button class="btn btn-sm btn-ghost" id="db-ver-estrutura" title="Ver estrutura">${icon('tool')} Estrutura</button>
+                </div>
+              </div>
+              <div style="overflow:auto">
+                <table class="db-data-table" style="font-size:13px;width:100%">
+                  <thead><tr>${cabecalhos}</tr></thead>
+                  <tbody>${linhas}</tbody>
+                </table>
+              </div>
+              ${paginacao}`;
+
+            // Ordenação por coluna
+            main.querySelectorAll('.db-th-sort').forEach(th => {
+                th.onclick = () => carregarTabela(nome, 1, th.dataset.col, th.dataset.dir, busca);
+            });
+
+            // Paginação
+            main.querySelectorAll('.db-pag').forEach(b => {
+                b.onclick = () => carregarTabela(nome, parseInt(b.dataset.p), ordenar, direcao, busca);
+            });
+
+            // Busca
+            const inpBusca = main.querySelector('#db-busca');
+            let buscaTimer;
+            inpBusca.oninput = () => {
+                clearTimeout(buscaTimer);
+                buscaTimer = setTimeout(() => carregarTabela(nome, 1, ordenar, direcao, inpBusca.value), 400);
+            };
+
+            // Ver estrutura
+            main.querySelector('#db-ver-estrutura').onclick = () => mostrarEstrutura(nome, estrutura);
+
+        } catch (e) {
+            main.innerHTML = `<div style="padding:24px;color:var(--danger)">${icon('trash')} Erro: ${escapeHtml(e.message)}</div>`;
+        }
+    }
+
+    function mostrarEstrutura(nome, estrutura) {
+        const colsHtml = estrutura.colunas.map(c => `<tr>
+            <td class="t-strong">${escapeHtml(c.nome)}</td>
+            <td><span class="badge b-sky" style="font-size:11px">${escapeHtml(c.tipo)}</span></td>
+            <td>${c.nulo === 'NO' ? '<span class="badge b-amber" style="font-size:11px">NOT NULL</span>' : '<span class="t-muted">sim</span>'}</td>
+            <td class="t-muted" style="font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis">${escapeHtml(c.padrao || '—')}</td>
+        </tr>`).join('');
+
+        const idxHtml = estrutura.indices.length ? estrutura.indices.map(i => `<tr>
+            <td class="t-strong">${escapeHtml(i.nome || i.name || '')}</td>
+            <td class="t-muted" style="font-size:12px">${escapeHtml(i.definicao || (i.unique ? 'UNIQUE' : 'INDEX'))}</td>
+        </tr>`).join('') : '<tr><td colspan="2" class="t-muted">Nenhum índice</td></tr>';
+
+        modal({
+            title: `Estrutura: ${nome}`,
+            body: el(`<div>
+              <h4 style="margin-bottom:8px">Colunas (${estrutura.colunas.length})</h4>
+              <div class="table-wrap" style="margin-bottom:20px">
+                <table><thead><tr><th>Coluna</th><th>Tipo</th><th>Nulo</th><th>Padrão</th></tr></thead>
+                <tbody>${colsHtml}</tbody></table>
+              </div>
+              <h4 style="margin-bottom:8px">Índices</h4>
+              <div class="table-wrap">
+                <table><thead><tr><th>Nome</th><th>Definição</th></tr></thead>
+                <tbody>${idxHtml}</tbody></table>
+              </div>
+            </div>`),
+            footer: null,
+        });
+    }
+
+    // ---- Console SQL ----
+    c.querySelector('#db-executar').onclick = async () => {
+        const sql = c.querySelector('#db-sql').value.trim();
+        if (!sql) { toast('Digite uma consulta SQL.', 'err'); return; }
+        const infoEl = c.querySelector('#db-query-info');
+        const resEl = c.querySelector('#db-query-resultado');
+        infoEl.textContent = 'Executando...';
+        resEl.innerHTML = '';
+
+        try {
+            const r = await api.post('/db/query', { sql });
+            infoEl.textContent = `${r.total} linhas em ${r.tempo_ms}ms`;
+
+            if (!r.dados.length) {
+                resEl.innerHTML = '<div style="padding:16px;text-align:center" class="t-muted">Nenhum resultado</div>';
+                return;
+            }
+
+            const cabecalhos = r.colunas.map(c => `<th>${escapeHtml(c)}</th>`).join('');
+            const linhas = r.dados.map(row =>
+                '<tr>' + r.colunas.map(col => {
+                    const v = row[col];
+                    if (v === null) return '<td class="t-muted" style="font-style:italic;font-size:12px">NULL</td>';
+                    const s = String(v);
+                    const truncado = s.length > 100 ? escapeHtml(s.slice(0, 100)) + '…' : escapeHtml(s);
+                    return `<td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(s)}">${truncado}</td>`;
+                }).join('') + '</tr>'
+            ).join('');
+
+            resEl.innerHTML = `<div style="overflow:auto"><table style="font-size:13px;width:100%"><thead><tr>${cabecalhos}</tr></thead><tbody>${linhas}</tbody></table></div>`;
+        } catch (e) {
+            infoEl.textContent = '';
+            resEl.innerHTML = `<div style="padding:16px;color:var(--danger)">${escapeHtml(e.message)}</div>`;
+        }
+    };
+
+    // Ctrl+Enter para executar
+    c.querySelector('#db-sql').onkeydown = (e) => {
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+            e.preventDefault();
+            c.querySelector('#db-executar').click();
+        }
+    };
+
     setContent(c);
 }
 
