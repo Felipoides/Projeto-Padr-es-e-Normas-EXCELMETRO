@@ -1,0 +1,18 @@
+{
+  "name": "metrocontrol",
+  "version": "1.0.0",
+  "description": "Sistema de Gestão de Padrões Metrológicos, Normas e Rastreabilidade — ISO/IEC 17025",
+  "type": "module",
+  "main": "backend/server.js",
+  "scripts": {
+    "start": "node backend/server.js",
+    "dev": "node --watch backend/server.js",
+    "reset": "node -e \"import('node:fs').then(fs=>{try{fs.rmSync('./data/metrocontrol.db');fs.rmSync('./data/metrocontrol.db-wal',{force:true});fs.rmSync('./data/metrocontrol.db-shm',{force:true})}catch(e){}console.log('Banco resetado.')})\""
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "keywords": ["metrologia", "iso17025", "calibracao", "padroes", "rastreabilidade", "inmetro"],
+  "author": "EXCELMETRO",
+  "license": "MIT"
+}

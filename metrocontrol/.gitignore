@@ -1,0 +1,15 @@
+# Banco de dados local (SQLite) e arquivos WAL
+/data/*.db
+/data/*.db-wal
+/data/*.db-shm
+/data/backups/
+
+# Dependências (o projeto base NÃO usa, mas a migração p/ PostgreSQL usa 'pg')
+node_modules/
+
+# Variáveis de ambiente
+.env
+
+# Logs e temporários
+*.log
+.DS_Store
