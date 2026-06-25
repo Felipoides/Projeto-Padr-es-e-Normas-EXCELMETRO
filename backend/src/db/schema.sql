@@ -168,6 +168,7 @@ CREATE TABLE IF NOT EXISTS movimentacoes (
     data_retirada       TEXT    NOT NULL DEFAULT (datetime('now')),
     cliente_id          INTEGER REFERENCES clientes(id),
     cliente_nome        TEXT,
+    os_numero           TEXT,
     servico_id          INTEGER REFERENCES servicos(id),
     motivo              TEXT,
     local_utilizacao    TEXT,
@@ -292,6 +293,7 @@ CREATE TABLE IF NOT EXISTS servicos (
     procedimento        TEXT,                       -- procedimento técnico
     cliente_id          INTEGER REFERENCES clientes(id),
     cliente_nome        TEXT,
+    os_numero           TEXT,
     tecnico_id          INTEGER REFERENCES usuarios(id),
     tecnico_nome        TEXT,
     data_inicio         TEXT,

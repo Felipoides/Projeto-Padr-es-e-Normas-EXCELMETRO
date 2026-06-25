@@ -194,6 +194,12 @@ async function migrar() {
             ['procedimento', 'TEXT'], ['instrucoes', 'TEXT'], ['procedimento_verificacao', 'TEXT'],
             ['codigo_barras', 'TEXT'], ['travado', 'INTEGER NOT NULL DEFAULT 0'],
         ],
+        movimentacoes: [
+            ['os_numero', 'TEXT'],
+        ],
+        servicos: [
+            ['os_numero', 'TEXT'],
+        ],
     };
     for (const [tabela, colunas] of Object.entries(novas)) {
         if (USE_PG) {

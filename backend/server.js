@@ -24,6 +24,7 @@ import * as usuarios from './src/routes/usuarios.js';
 import * as auditoria from './src/routes/auditoria.js';
 import * as backup from './src/routes/backup.js';
 import * as dbexplorer from './src/routes/dbexplorer.js';
+import * as importar from './src/routes/importar.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FRONTEND_DIR = join(__dirname, '../frontend');
@@ -40,7 +41,7 @@ if (totalUsuarios === 0) {
 // --- Montagem do roteador ---------------------------------------------------
 const router = new Router();
 for (const mod of [auth, padroes, movimentacoes, calibracoes, normas,
-    servicos, dashboard, relatorios, usuarios, auditoria, backup, dbexplorer]) {
+    servicos, dashboard, relatorios, usuarios, auditoria, backup, dbexplorer, importar]) {
     mod.register(router);
 }
 
@@ -110,8 +111,8 @@ const server = createServer(async (req, res) => {
 server.listen(PORT, () => {
     console.log('');
     console.log('  ╔════════════════════════════════════════════════════╗');
-    console.log('  ║                  MetroControl                      ║');
-    console.log('  ║      Gestão de Padrões Metrológicos / 17025        ║');
+    console.log('  ║          EXCELMETRO — MetroControl                 ║');
+    console.log('  ║    Gestão de Padrões Metrológicos / RBC 225        ║');
     console.log('  ╚════════════════════════════════════════════════════╝');
     console.log('');
     console.log(`  ➜  Aplicação:  http://localhost:${PORT}`);

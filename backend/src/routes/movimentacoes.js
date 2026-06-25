@@ -54,23 +54,23 @@ export function register(router) {
             throw new HttpError(409, `Padrão indisponível (status: ${padrao.status}).`);
 
         const cliente = b.cliente_id ? await get(`SELECT nome FROM clientes WHERE id = ?`, [b.cliente_id]) : null;
-        // Responsável pode ser texto livre (ex.: "Valdir/Alexandre"); senão usa o usuário logado.
+        const clienteNome = (b.cliente_nome || '').trim() || cliente?.nome || null;
         const responsavel = (b.responsavel_nome || '').trim() || ctx.usuario.nome;
-        // Se a data de retorno já vier preenchida, a movimentação nasce fechada.
         const jaRetornou = !!b.data_devolucao;
 
         return await transaction(async () => {
             const r = await run(
                 `INSERT INTO movimentacoes
                   (padrao_id, retirado_por, retirado_por_nome, data_retirada, cliente_id, cliente_nome,
-                   servico_id, motivo, local_utilizacao, observacoes, status,
+                   os_numero, servico_id, motivo, local_utilizacao, observacoes, status,
                    devolvido_por, devolvido_por_nome, data_devolucao, condicao_devolucao,
                    criado_por, atualizado_por)
-                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
                 [
                     b.padrao_id, ctx.usuario.id, responsavel,
                     b.data_retirada || new Date().toISOString(),
-                    b.cliente_id || null, cliente?.nome || b.cliente_nome || null,
+                    b.cliente_id || null, clienteNome,
+                    b.os_numero || null,
                     b.servico_id || null, b.motivo || null, b.local_utilizacao || null,
                     b.observacoes || null, jaRetornou ? 'fechada' : 'aberta',
                     jaRetornou ? ctx.usuario.id : null, jaRetornou ? responsavel : null,

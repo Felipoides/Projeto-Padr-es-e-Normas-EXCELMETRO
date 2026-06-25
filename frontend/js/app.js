@@ -49,18 +49,19 @@ function renderLogin() {
     root.innerHTML = `
     <div class="login-wrap">
       <div class="login-hero">
-        <h1>MetroControl</h1>
-        <p>Gestão total de padrões de medição, normas técnicas, calibrações e rastreabilidade metrológica — em conformidade com a ISO/IEC 17025.</p>
+        <img src="/img/logo.svg" alt="EXCELMETRO" style="width:280px;margin-bottom:20px;filter:drop-shadow(0 2px 8px rgba(0,0,0,.15))">
+        <h1 style="font-size:22px;margin-bottom:8px">Sistema de Gestão de Padrões</h1>
+        <p>Controle de instrumentos de medição, calibrações, normas e rastreabilidade metrológica — em conformidade com ISO/IEC 17025.</p>
         <div class="badges">
-          <span>✓ ISO/IEC 17025</span><span>✓ ABNT</span><span>✓ Inmetro</span>
+          <span>✓ RBC / Inmetro nº 225</span><span>✓ ISO/IEC 17025</span><span>✓ ABNT</span>
           <span>✓ Rastreabilidade total</span><span>✓ Auditoria completa</span>
         </div>
+        <p style="margin-top:16px;font-size:12px;opacity:.7">Excel Serviços em Metrologia Ltda · CNPJ 01.102.430/0001-87<br>Av. Celina Ferreira Ottoni, 5502 — Varginha/MG</p>
       </div>
       <div class="login-form-side">
         <div class="login-card">
           <div class="brand">
-            <svg class="logo" viewBox="0 0 100 100"><rect width="100" height="100" rx="22" fill="#2563eb"/><path d="M50 18 L78 34 V66 L50 82 L22 66 V34 Z" fill="none" stroke="white" stroke-width="6"/><circle cx="50" cy="50" r="10" fill="white"/></svg>
-            <b>MetroControl</b>
+            <img src="/img/logo.svg" alt="EXCELMETRO" style="height:44px">
           </div>
           <h2>Acesse sua conta</h2>
           <p class="sub">Entre com suas credenciais corporativas</p>
@@ -151,8 +152,8 @@ function renderShell() {
     <div class="app">
       <aside class="sidebar">
         <div class="brand">
-          <svg class="logo" viewBox="0 0 100 100"><rect width="100" height="100" rx="22" fill="#2563eb"/><path d="M50 18 L78 34 V66 L50 82 L22 66 V34 Z" fill="none" stroke="white" stroke-width="6"/><circle cx="50" cy="50" r="10" fill="white"/></svg>
-          <div><b>MetroControl</b><small>METROLOGIA 17025</small></div>
+          <img src="/img/logo.svg" alt="EXCELMETRO" style="height:36px;filter:brightness(1.3)">
+          <div><b>EXCELMETRO</b><small>RBC / Inmetro nº 225</small></div>
         </div>
         <nav class="nav">${navHtml}</nav>
         <div class="user-box">
@@ -322,7 +323,10 @@ async function viewPadroes(query = {}) {
 
     const c = el(`<div>
       <div class="page-head"><div class="ph-text"><h2>Padrões de Medição</h2><p>${r.total} padrões cadastrados · busca avançada e filtros rápidos</p></div>
-        <div class="ph-actions">${podeEscrever() ? `<button class="btn btn-primary" id="novo">${icon('plus')} Novo padrão</button>` : ''}</div></div>
+        <div class="ph-actions">
+          ${ehNivel('administrador') ? `<button class="btn btn-ghost" id="btn-importar">${icon('report')} Importar CSV</button>` : ''}
+          ${podeEscrever() ? `<button class="btn btn-primary" id="novo">${icon('plus')} Novo padrão</button>` : ''}
+        </div></div>
       <div class="toolbar">
         <div class="search">${icon('search')}<input type="text" id="busca" placeholder="Código, série, fabricante, modelo, grandeza, localização..." value="${escapeHtml(filtroPadrao.busca)}"></div>
       </div>
@@ -337,39 +341,111 @@ async function viewPadroes(query = {}) {
     const busca = c.querySelector('#busca');
     let tmr; busca.oninput = () => { clearTimeout(tmr); tmr = setTimeout(() => { filtroPadrao.busca = busca.value; viewPadroes(); }, 350); };
     const nv = c.querySelector('#novo'); if (nv) nv.onclick = () => formPadrao();
+
+    // ---- Importação de CSV ----
+    const btnImp = c.querySelector('#btn-importar');
+    if (btnImp) {
+        const inp = document.createElement('input');
+        inp.type = 'file'; inp.accept = '.csv,.txt'; inp.style.display = 'none';
+        c.appendChild(inp);
+        btnImp.onclick = () => inp.click();
+        inp.onchange = async () => {
+            const file = inp.files[0]; if (!file) return;
+            try {
+                const texto = await file.text();
+                const linhas = texto.split(/\r?\n/).filter(l => l.trim());
+                if (linhas.length < 2) { toast('Arquivo vazio ou sem dados.', 'err'); return; }
+                // Detecta separador (;  ,  \t)
+                const sep = linhas[0].includes(';') ? ';' : linhas[0].includes('\t') ? '\t' : ',';
+                const cabecalhos = linhas[0].split(sep).map(h => h.replace(/^"|"$/g, '').trim());
+                const registros = [];
+                for (let i = 1; i < linhas.length; i++) {
+                    const vals = linhas[i].split(sep).map(v => v.replace(/^"|"$/g, '').trim());
+                    if (vals.length < 2) continue;
+                    const obj = {};
+                    cabecalhos.forEach((h, j) => { if (vals[j] !== undefined) obj[h] = vals[j]; });
+                    registros.push(obj);
+                }
+                const conf = await confirmar({
+                    title: 'Importar padrões do CSV',
+                    message: `Encontrados ${registros.length} registros no arquivo "${file.name}".\n\nColunas detectadas: ${cabecalhos.join(', ')}\n\nDeseja importar? Padrões já existentes (mesmo código) serão ignorados.`,
+                });
+                if (!conf) return;
+                toast('Importando...');
+                const r = await api.post('/importar/padroes', { registros });
+                toast(r.mensagem);
+                if (r.erros?.length) console.warn('Erros na importação:', r.erros);
+                viewPadroes();
+            } catch (e) { toast(e.message || 'Erro ao importar.', 'err'); }
+        };
+    }
+
     setContent(c);
 }
 
 // ---- Formulário de padrão (criar/editar) -----------------------------------
 function formPadrao(p = null) {
-    const campos = [
-        ['codigo_interno', 'Código interno (identificação) *', 'text'], ['numero_serie', 'Número de série', 'text'],
-        ['tipo_instrumento', 'Instrumento (tipo)', 'text'], ['fabricante', 'Fabricante', 'text'],
-        ['modelo', 'Modelo', 'text'], ['grandeza', 'Grandeza medida', 'text'],
-        ['capacidade', 'Capacidade', 'text'], ['faixa_indicacao', 'Faixa de utilização', 'text'],
-        ['resolucao', 'Resolução', 'text'], ['unidade', 'Unidade', 'text'],
-        ['exatidao', 'Exatidão', 'text'], ['tolerancia', 'Tolerância', 'text'],
-        ['classe_metrologica', 'Classe metrológica', 'text'], ['lacre', 'Lacre', 'text'],
-        ['departamento', 'Departamento', 'text'], ['usuario_instrumento', 'Usuário', 'text'],
-        ['procedimento', 'Procedimento', 'text'], ['codigo_barras', 'Código de barras', 'text'],
-        ['localizacao', 'Localização física', 'text'], ['setor', 'Setor', 'text'],
-        ['data_aquisicao', 'Data de aquisição', 'date'],
-        ['data_ultima_calibracao', 'Última calibração', 'date'], ['data_proxima_calibracao', 'Próxima calibração', 'date'],
-        ['data_ultima_checagem', 'Última checagem', 'date'], ['data_proxima_checagem', 'Próxima checagem', 'date'],
-        ['periodicidade_calibracao_meses', 'Periodicidade calibração (meses)', 'number'],
-        ['periodicidade_checagem_meses', 'Periodicidade checagem (meses)', 'number'],
-    ];
-    const fields = campos.map(([n, l, t]) =>
-        `<div class="field"><label>${l}</label><input type="${t}" name="${n}" value="${p ? escapeHtml(p[n] ?? '') : (t === 'number' ? (n.includes('calibracao') ? 12 : 6) : '')}"></div>`).join('');
-    const statusOpts = Object.entries(STATUS_PADRAO).map(([v, [l]]) => `<option value="${v}" ${p?.status === v ? 'selected' : ''}>${l}</option>`).join('');
-    const body = el(`<form class="form-grid" id="fp">
-      ${fields}
-      <div class="field"><label>Status operacional</label><select name="status">${statusOpts}</select></div>
-      <div class="field"><label>Periodicidade (unidade)</label><input type="text" value="Mês(es)" disabled></div>
-      <div class="field full"><label>Instruções de uso</label><textarea name="instrucoes">${p ? escapeHtml(p.instrucoes ?? '') : ''}</textarea></div>
-      <div class="field full"><label>Procedimento de verificação</label><textarea name="procedimento_verificacao">${p ? escapeHtml(p.procedimento_verificacao ?? '') : ''}</textarea></div>
-      <div class="field full"><label>Observações</label><textarea name="observacoes">${p ? escapeHtml(p.observacoes ?? '') : ''}</textarea></div>
-      <div class="field full"><label style="display:flex;gap:8px;align-items:center;cursor:pointer"><input type="checkbox" name="travado" style="width:auto" ${p?.travado ? 'checked' : ''}> Travar registro (impede edição acidental)</label></div>
+    const v = (n, fallback) => p ? escapeHtml(p[n] ?? '') : (fallback ?? '');
+    const nv = (n, fb) => p ? escapeHtml(p[n] ?? '') : (fb ?? '');
+    const statusOpts = Object.entries(STATUS_PADRAO).map(([val, [l]]) => `<option value="${val}" ${p?.status === val ? 'selected' : ''}>${l}</option>`).join('');
+    const body = el(`<form id="fp" style="display:flex;flex-direction:column;gap:16px">
+      <!-- Seção: Identificação e dados técnicos (layout espelho do Access) -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <fieldset style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px;margin:0">
+          <legend style="font-weight:700;font-size:13px;color:var(--primary);padding:0 6px">Dados do instrumento</legend>
+          <div class="form-grid">
+            <div class="field full"><label>Identificação *</label><input type="text" name="codigo_interno" value="${v('codigo_interno')}" required></div>
+            <div class="field"><label>Instrumento</label><input type="text" name="tipo_instrumento" value="${v('tipo_instrumento')}"></div>
+            <div class="field"><label>Modelo</label><input type="text" name="modelo" value="${v('modelo')}"></div>
+            <div class="field"><label>Fabricante</label><input type="text" name="fabricante" value="${v('fabricante')}"></div>
+            <div class="field"><label>Grandeza</label><input type="text" name="grandeza" value="${v('grandeza')}"></div>
+            <div class="field"><label>Capacidade</label><input type="text" name="capacidade" value="${v('capacidade')}"></div>
+            <div class="field"><label>Faixa de utilização</label><input type="text" name="faixa_indicacao" value="${v('faixa_indicacao')}"></div>
+            <div class="field"><label>Resolução</label><input type="text" name="resolucao" value="${v('resolucao')}"></div>
+            <div class="field"><label>Exatidão</label><input type="text" name="exatidao" value="${v('exatidao')}"></div>
+            <div class="field"><label>Status</label><select name="status">${statusOpts}</select></div>
+            <div class="field"><label>Classe metrológica</label><input type="text" name="classe_metrologica" value="${v('classe_metrologica')}"></div>
+            <div class="field"><label>Código de barras</label><input type="text" name="codigo_barras" value="${v('codigo_barras')}"></div>
+            <div class="field"><label>Data aquisição</label><input type="date" name="data_aquisicao" value="${v('data_aquisicao')}"></div>
+          </div>
+        </fieldset>
+        <fieldset style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px;margin:0">
+          <legend style="font-weight:700;font-size:13px;color:var(--primary);padding:0 6px">Controle e localização</legend>
+          <div class="form-grid">
+            <div class="field"><label>Lacre</label><input type="text" name="lacre" value="${v('lacre')}"></div>
+            <div class="field"><label>Nº Série</label><input type="text" name="numero_serie" value="${v('numero_serie')}"></div>
+            <div class="field"><label>Departamento</label><input type="text" name="departamento" value="${v('departamento')}"></div>
+            <div class="field"><label>Usuário</label><input type="text" name="usuario_instrumento" value="${v('usuario_instrumento')}"></div>
+            <div class="field"><label>Procedimento</label><input type="text" name="procedimento" value="${v('procedimento')}"></div>
+            <div class="field"><label>Localização</label><input type="text" name="localizacao" value="${v('localizacao')}"></div>
+            <div class="field"><label>Setor</label><input type="text" name="setor" value="${v('setor')}"></div>
+            <div class="field"><label>Unidade</label><input type="text" name="unidade" value="${v('unidade')}"></div>
+            <div class="field"><label>Tolerância</label><input type="text" name="tolerancia" value="${v('tolerancia')}"></div>
+            <div class="field"><label>Periodicidade calib. (meses)</label><input type="number" name="periodicidade_calibracao_meses" value="${nv('periodicidade_calibracao_meses','12')}"></div>
+            <div class="field"><label>Periodicidade chec. (meses)</label><input type="number" name="periodicidade_checagem_meses" value="${nv('periodicidade_checagem_meses','6')}"></div>
+            <div class="field full"><label style="display:flex;gap:8px;align-items:center;cursor:pointer"><input type="checkbox" name="travado" style="width:auto" ${p?.travado ? 'checked' : ''}> Travar registro</label></div>
+          </div>
+        </fieldset>
+      </div>
+      <!-- Seção: Datas de calibração/checagem -->
+      <fieldset style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px;margin:0">
+        <legend style="font-weight:700;font-size:13px;color:var(--primary);padding:0 6px">Calibração & Verificação</legend>
+        <div class="form-grid">
+          <div class="field"><label>Última calibração</label><input type="date" name="data_ultima_calibracao" value="${v('data_ultima_calibracao')}"></div>
+          <div class="field"><label>Próxima calibração</label><input type="date" name="data_proxima_calibracao" value="${v('data_proxima_calibracao')}"></div>
+          <div class="field"><label>Última checagem</label><input type="date" name="data_ultima_checagem" value="${v('data_ultima_checagem')}"></div>
+          <div class="field"><label>Próxima checagem</label><input type="date" name="data_proxima_checagem" value="${v('data_proxima_checagem')}"></div>
+        </div>
+      </fieldset>
+      <!-- Seção: Textos longos (abas do Access: Instruções, Proced. Verific.) -->
+      <fieldset style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px;margin:0">
+        <legend style="font-weight:700;font-size:13px;color:var(--primary);padding:0 6px">Instruções & Procedimentos</legend>
+        <div class="form-grid">
+          <div class="field full"><label>Instruções de uso</label><textarea name="instrucoes" rows="3">${p ? escapeHtml(p.instrucoes ?? '') : ''}</textarea></div>
+          <div class="field full"><label>Procedimento de verificação</label><textarea name="procedimento_verificacao" rows="3">${p ? escapeHtml(p.procedimento_verificacao ?? '') : ''}</textarea></div>
+          <div class="field full"><label>Observações</label><textarea name="observacoes" rows="2">${p ? escapeHtml(p.observacoes ?? '') : ''}</textarea></div>
+        </div>
+      </fieldset>
     </form>`);
     const btnCancel = el(`<button class="btn btn-ghost">Cancelar</button>`);
     const btnSave = el(`<button class="btn btn-primary">${icon('check')} Salvar</button>`);
@@ -388,20 +464,24 @@ function formPadrao(p = null) {
     };
 }
 
-// ---- Detalhe do padrão -----------------------------------------------------
+// ---- Detalhe do padrão (layout inspirado no Access: 2 colunas + abas) ------
 async function viewPadraoDetalhe(id) {
     loading();
     const p = await api.get(`/padroes/${id}`);
     const timeline = await api.get(`/auditoria/timeline/padroes/${id}`).catch(() => []);
     const dlItem = (k, v) => `<div class="dl-item"><div class="k">${k}</div><div class="v">${v ?? '—'}</div></div>`;
 
-    const movs = p.movimentacoes.map((m) => `<tr><td>${escapeHtml(m.local_utilizacao || '—')}</td><td>${escapeHtml(m.retirado_por_nome || '—')}</td>
+    const movs = p.movimentacoes.map((m) => `<tr><td>${escapeHtml(m.cliente_nome || '—')}</td><td>${escapeHtml(m.os_numero || '—')}</td>
+        <td>${escapeHtml(m.local_utilizacao || '—')}</td><td>${escapeHtml(m.retirado_por_nome || '—')}</td>
         <td>${fmtDataHora(m.data_retirada)}</td><td>${m.data_devolucao ? fmtDataHora(m.data_devolucao) : '<span class="t-muted">—</span>'}</td>
         <td>${m.status === 'aberta' ? '<span class="badge b-amber">Em uso</span>' : '<span class="badge b-green">Devolvido</span>'}</td></tr>`).join('')
-        || '<tr><td colspan="5" class="t-muted">Sem movimentações.</td></tr>';
+        || '<tr><td colspan="7" class="t-muted">Sem movimentações.</td></tr>';
     const cals = p.calibracoes.map((c) => `<tr><td>${fmtData(c.data_calibracao)}</td><td>${escapeHtml(c.numero_certificado || '—')}</td>
         <td>${escapeHtml(c.laboratorio || '—')}</td><td>${escapeHtml(c.resultado || '—')}</td><td>${fmtData(c.data_proxima)}</td></tr>`).join('')
         || '<tr><td colspan="5" class="t-muted">Sem calibrações.</td></tr>';
+    const chks = (p.checagens || []).map((ch) => `<tr><td>${fmtData(ch.data_checagem)}</td><td>${escapeHtml(ch.metodo || '—')}</td>
+        <td>${escapeHtml(ch.resultado || '—')}</td><td>${escapeHtml(ch.responsavel_nome || '—')}</td><td>${fmtData(ch.data_proxima)}</td></tr>`).join('')
+        || '<tr><td colspan="5" class="t-muted">Sem verificações.</td></tr>';
     const tl = timeline.map((t) => `<div class="tl-item"><div class="tl-act">${escapeHtml(t.descricao || t.acao)}</div><div class="tl-meta">${escapeHtml(t.usuario_nome || '')} · ${fmtDataHora(t.criado_em)}</div></div>`).join('') || '<div class="empty">Sem eventos.</div>';
 
     const c = el(`<div>
@@ -417,33 +497,85 @@ async function viewPadraoDetalhe(id) {
           ${ehNivel('controle_padroes') ? `<button class="btn btn-danger" id="b-del">${icon('trash')}</button>` : ''}
         </div>
       </div>
-      <div class="grid-2" style="margin-bottom:16px">
-        <div class="card"><div class="card-head"><h3>Dados técnicos</h3>${p.travado ? '<span class="badge b-gray">🔒 Travado</span>' : ''}</div><div class="card-body"><div class="dl">
-          ${dlItem('Nº de série', escapeHtml(p.numero_serie))}${dlItem('Grandeza', escapeHtml(p.grandeza))}
-          ${dlItem('Capacidade', escapeHtml(p.capacidade))}${dlItem('Faixa de utilização', escapeHtml(p.faixa_indicacao))}
-          ${dlItem('Resolução', escapeHtml(p.resolucao))}${dlItem('Unidade', escapeHtml(p.unidade))}
-          ${dlItem('Exatidão', escapeHtml(p.exatidao))}${dlItem('Tolerância', escapeHtml(p.tolerancia))}
-          ${dlItem('Classe metrológica', escapeHtml(p.classe_metrologica))}${dlItem('Lacre', escapeHtml(p.lacre))}
-          ${dlItem('Departamento', escapeHtml(p.departamento))}${dlItem('Usuário', escapeHtml(p.usuario_instrumento))}
-          ${dlItem('Procedimento', escapeHtml(p.procedimento))}${dlItem('Código de barras', escapeHtml(p.codigo_barras))}
-          ${dlItem('Localização', escapeHtml(p.localizacao))}${dlItem('Setor', escapeHtml(p.setor))}
-          ${dlItem('Aquisição', fmtData(p.data_aquisicao))}${dlItem('Identificador (QR)', `<span class="mono" style="font-size:11px">${escapeHtml(p.uuid)}</span>`)}
+
+      <!-- Cabeçalho: 2 colunas espelhando o layout do Access -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+        <div class="card"><div class="card-head"><h3>Dados do instrumento</h3>${p.travado ? '<span class="badge b-gray">Travado</span>' : ''}</div><div class="card-body"><div class="dl">
+          ${dlItem('Identificação', escapeHtml(p.codigo_interno))}
+          ${dlItem('Instrumento', escapeHtml(p.tipo_instrumento))}
+          ${dlItem('Modelo', escapeHtml(p.modelo))}
+          ${dlItem('Fabricante', escapeHtml(p.fabricante))}
+          ${dlItem('Grandeza', escapeHtml(p.grandeza))}
+          ${dlItem('Capacidade', escapeHtml(p.capacidade))}
+          ${dlItem('Faixa de utilização', escapeHtml(p.faixa_indicacao))}
+          ${dlItem('Resolução', escapeHtml(p.resolucao))}
+          ${dlItem('Exatidão', escapeHtml(p.exatidao))}
+          ${dlItem('Classe metrológica', escapeHtml(p.classe_metrologica))}
+          ${dlItem('Status', badge(STATUS_PADRAO, p.status))}
+          ${dlItem('Código de barras', escapeHtml(p.codigo_barras))}
+          ${dlItem('Aquisição', fmtData(p.data_aquisicao))}
+          ${dlItem('UUID', `<span class="mono" style="font-size:11px">${escapeHtml(p.uuid)}</span>`)}
         </div></div></div>
-        <div class="card"><div class="card-head"><h3>${icon('calendar')} Vencimentos</h3></div><div class="card-body"><div class="dl">
+        <div class="card"><div class="card-head"><h3>Controle e localização</h3></div><div class="card-body"><div class="dl">
+          ${dlItem('Lacre', escapeHtml(p.lacre))}
+          ${dlItem('Nº Série', escapeHtml(p.numero_serie))}
+          ${dlItem('Departamento', escapeHtml(p.departamento))}
+          ${dlItem('Usuário', escapeHtml(p.usuario_instrumento))}
+          ${dlItem('Procedimento', escapeHtml(p.procedimento))}
+          ${dlItem('Localização', escapeHtml(p.localizacao))}
+          ${dlItem('Setor', escapeHtml(p.setor))}
+          ${dlItem('Unidade', escapeHtml(p.unidade))}
+          ${dlItem('Tolerância', escapeHtml(p.tolerancia))}
+          ${dlItem('Periodicidade calib.', `${p.periodicidade_calibracao_meses ?? 12} meses`)}
+          ${dlItem('Periodicidade chec.', `${p.periodicidade_checagem_meses ?? 6} meses`)}
           ${dlItem('Última calibração', fmtData(p.data_ultima_calibracao))}
-          ${dlItem('Próxima calibração', `<span class="${p.dias_para_calibracao<0?'sev-vencido':p.dias_para_calibracao<=15?'sev-alerta':''}">${fmtData(p.data_proxima_calibracao)} ${p.dias_para_calibracao!=null?`(${p.dias_para_calibracao} d)`:''}</span>`)}
-          ${dlItem('Última checagem', fmtData(p.data_ultima_checagem))}
-          ${dlItem('Próxima checagem', `<span class="${p.dias_para_checagem<0?'sev-vencido':p.dias_para_checagem<=15?'sev-alerta':''}">${fmtData(p.data_proxima_checagem)} ${p.dias_para_checagem!=null?`(${p.dias_para_checagem} d)`:''}</span>`)}
-        </div>
-        <div style="margin-top:14px"><div class="card-head" style="padding:0 0 10px"><h3>${icon('activity')} Linha do tempo</h3></div>
-          <div class="timeline" style="max-height:200px;overflow:auto">${tl}</div></div>
-        </div></div>
+          ${dlItem('Próxima calibração', `<span class="${p.dias_para_calibracao<0?'sev-vencido':p.dias_para_calibracao<=15?'sev-alerta':''}">${fmtData(p.data_proxima_calibracao)} ${p.dias_para_calibracao!=null?`(${p.dias_para_calibracao}d)`:''}</span>`)}
+          ${dlItem('Próxima checagem', `<span class="${p.dias_para_checagem<0?'sev-vencido':p.dias_para_checagem<=15?'sev-alerta':''}">${fmtData(p.data_proxima_checagem)} ${p.dias_para_checagem!=null?`(${p.dias_para_checagem}d)`:''}</span>`)}
+        </div></div></div>
       </div>
-      <div class="card" style="margin-bottom:16px"><div class="card-head"><h3>Histórico de calibrações</h3></div>
-        <div class="table-wrap"><table><thead><tr><th>Data</th><th>Certificado</th><th>Laboratório</th><th>Resultado</th><th>Próxima</th></tr></thead><tbody>${cals}</tbody></table></div></div>
-      <div class="card"><div class="card-head"><h3>Histórico de movimentações (saída / retorno)</h3></div>
-        <div class="table-wrap"><table><thead><tr><th>Local</th><th>Responsável</th><th>Data Saída</th><th>Data Retorno</th><th>Situação</th></tr></thead><tbody>${movs}</tbody></table></div></div>
+
+      <!-- Abas (mesmo estilo do Access: Calibração | Verificação | Controle Saída | Instruções | Proced. Verific. | T.A.) -->
+      <div class="card">
+        <div class="tabs" style="border-bottom:1px solid var(--border);padding:0 16px">
+          <button class="active" data-tab="calibracao">Calibração</button>
+          <button data-tab="verificacao">Verificação</button>
+          <button data-tab="saida">Controle Saída</button>
+          <button data-tab="instrucoes">Instruções</button>
+          <button data-tab="proc_verif">Proced. Verific.</button>
+          <button data-tab="timeline">T.A.</button>
+        </div>
+        <div id="tab-calibracao">
+          <div class="table-wrap"><table><thead><tr><th>Data</th><th>Certificado</th><th>Laboratório</th><th>Resultado</th><th>Próxima</th></tr></thead><tbody>${cals}</tbody></table></div>
+        </div>
+        <div id="tab-verificacao" class="hidden">
+          <div class="table-wrap"><table><thead><tr><th>Data</th><th>Método</th><th>Resultado</th><th>Responsável</th><th>Próxima</th></tr></thead><tbody>${chks}</tbody></table></div>
+        </div>
+        <div id="tab-saida" class="hidden">
+          <div class="table-wrap"><table><thead><tr><th>Cliente</th><th>OS</th><th>Local</th><th>Responsável</th><th>Data Saída</th><th>Data Retorno</th><th>Situação</th></tr></thead><tbody>${movs}</tbody></table></div>
+        </div>
+        <div id="tab-instrucoes" class="hidden">
+          <div style="padding:20px;white-space:pre-wrap;color:var(--text);min-height:80px">${escapeHtml(p.instrucoes || 'Nenhuma instrução registrada.')}</div>
+        </div>
+        <div id="tab-proc_verif" class="hidden">
+          <div style="padding:20px;white-space:pre-wrap;color:var(--text);min-height:80px">${escapeHtml(p.procedimento_verificacao || 'Nenhum procedimento registrado.')}</div>
+        </div>
+        <div id="tab-timeline" class="hidden">
+          <div style="padding:20px"><div class="timeline" style="max-height:400px;overflow:auto">${tl}</div></div>
+        </div>
+      </div>
     </div>`);
+
+    // Lógica das abas
+    c.querySelectorAll('.tabs button[data-tab]').forEach(btn => {
+        btn.onclick = () => {
+            c.querySelectorAll('.tabs button[data-tab]').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            ['calibracao','verificacao','saida','instrucoes','proc_verif','timeline'].forEach(t => {
+                const el2 = c.querySelector(`#tab-${t}`);
+                if (el2) el2.classList.toggle('hidden', t !== btn.dataset.tab);
+            });
+        };
+    });
 
     c.querySelector('#b-qr').onclick = () => mostrarQR(p);
     const be = c.querySelector('#b-edit'); if (be) be.onclick = () => formPadrao(p);
@@ -472,7 +604,7 @@ function mostrarQR(p) {
         const w = window.open('', '_blank');
         w.document.write(`<html><head><title>Etiqueta ${p.codigo_interno}</title></head><body style="font-family:sans-serif;text-align:center;padding:40px">
           <h2>${p.codigo_interno}</h2><p>${p.fabricante||''} ${p.modelo||''}</p>
-          <img src="https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(conteudo)}"><p>MetroControl · Metrologia</p>
+          <img src="https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(conteudo)}"><p>EXCELMETRO · RBC/Inmetro nº 225</p>
           <script>window.onload=()=>window.print()<\/script></body></html>`);
         w.document.close();
     };
@@ -489,20 +621,22 @@ async function viewMovimentacoes(query = {}) {
         .map(([v, l]) => `<button class="chip ${status === v ? 'active' : ''}" onclick="location.hash='#/movimentacoes${v ? '?status=' + v : ''}'">${l}</button>`).join('');
     const linhas = movs.map((m) => `<tr>
         <td class="mono">${escapeHtml(m.codigo_interno)}</td>
+        <td>${escapeHtml(m.cliente_nome || '—')}</td>
+        <td>${escapeHtml(m.os_numero || '—')}</td>
         <td>${escapeHtml(m.local_utilizacao || '—')}</td>
         <td>${escapeHtml(m.retirado_por_nome || '—')}</td>
         <td>${fmtDataHora(m.data_retirada)}</td>
         <td>${m.data_devolucao ? fmtDataHora(m.data_devolucao) : '<span class="t-muted">—</span>'}</td>
         <td>${m.status === 'aberta' ? `<span class="badge b-amber">${m.dias_fora} dia(s) fora</span>` : '<span class="badge b-green">Devolvido</span>'}</td>
         <td>${m.status === 'aberta' && podeEscrever() ? `<button class="btn btn-sm btn-primary" data-dev="${m.id}">${icon('check')} Registrar retorno</button>` : ''}</td>
-      </tr>`).join('') || '<tr><td colspan="7"><div class="empty">'+icon('move')+'<div>Nenhuma movimentação.</div></div></td></tr>';
+      </tr>`).join('') || '<tr><td colspan="9"><div class="empty">'+icon('move')+'<div>Nenhuma movimentação.</div></div></td></tr>';
 
     const c = el(`<div>
       <div class="page-head"><div class="ph-text"><h2>Movimentações (Controle de Saída)</h2><p>Saída e retorno de padrões — com local, responsável e datas</p></div>
         <div class="ph-actions">${podeEscrever() ? `<button class="btn btn-primary" id="nova">${icon('plus')} Nova movimentação</button>` : ''}</div></div>
       <div class="chips" style="margin-bottom:16px">${chips}</div>
       <div class="card"><div class="table-wrap"><table>
-        <thead><tr><th>Padrão</th><th>Local</th><th>Responsável</th><th>Data Saída</th><th>Data Retorno</th><th>Situação</th><th></th></tr></thead>
+        <thead><tr><th>Padrão</th><th>Cliente</th><th>OS</th><th>Local</th><th>Responsável</th><th>Data Saída</th><th>Data Retorno</th><th>Situação</th><th></th></tr></thead>
         <tbody>${linhas}</tbody></table></div></div></div>`);
     const nv = c.querySelector('#nova'); if (nv) nv.onclick = () => formMovimentacao();
     c.querySelectorAll('[data-dev]').forEach((b) => b.onclick = () => formDevolucao(b.dataset.dev));
@@ -518,16 +652,15 @@ function agoraLocal() {
 async function formMovimentacao(padrao = null) {
     let padroes = [];
     if (!padrao) padroes = (await api.get('/padroes?filtro=disponivel&limite=500')).itens;
-    const clientes = await api.get('/clientes').catch(() => []);
     const optsP = padrao ? `<option value="${padrao.id}">${escapeHtml(padrao.codigo_interno)} — ${escapeHtml(padrao.modelo || '')}</option>`
         : padroes.map((p) => `<option value="${p.id}">${escapeHtml(p.codigo_interno)} — ${escapeHtml(p.modelo || '')}</option>`).join('');
-    const optsC = `<option value="">— Sem cliente —</option>` + clientes.map((c) => `<option value="${c.id}">${escapeHtml(c.nome)}</option>`).join('');
     const body = el(`<form class="form-grid" id="fm">
       <div class="field full"><label>Padrão *</label><select name="padrao_id">${optsP}</select></div>
+      <div class="field"><label>Cliente</label><input name="cliente_nome" placeholder="Ex.: Indústria Alfa Ltda"></div>
+      <div class="field"><label>OS (Ordem de Serviço)</label><input name="os_numero" placeholder="Ex.: OS-2026-001"></div>
       <div class="field"><label>Local de utilização</label><input name="local_utilizacao" placeholder="Ex.: Impacta, planta, campo..."></div>
       <div class="field"><label>Responsável</label><input name="responsavel_nome" value="${escapeHtml(auth.user.nome)}" placeholder="Ex.: Valdir/Alexandre"></div>
       <div class="field"><label>Data de saída *</label><input type="datetime-local" name="data_retirada" value="${agoraLocal()}"></div>
-      <div class="field"><label>Cliente relacionado</label><select name="cliente_id">${optsC}</select></div>
       <div class="field full"><label>Motivo da utilização</label><input name="motivo" placeholder="Ex.: calibração em campo, ensaio..."></div>
       <div class="field full"><label style="display:flex;gap:8px;align-items:center;cursor:pointer"><input type="checkbox" id="ja-retornou" style="width:auto"> Já retornou? Registrar a data de retorno agora</label></div>
       <div class="field hidden" id="bloco-retorno"><label>Data de retorno</label><input type="datetime-local" name="data_devolucao" value="${agoraLocal()}"></div>
@@ -708,14 +841,15 @@ async function viewServicos(query = {}) {
     const servs = await api.get('/servicos' + api.qs({ busca: query.busca }));
     const linhas = servs.map((s) => `<tr onclick="location.hash='#/servicos/${s.id}'" style="cursor:pointer">
         <td class="mono">${escapeHtml(s.codigo || ('#' + s.id))}</td><td class="t-strong">${escapeHtml(s.nome)}</td>
-        <td>${escapeHtml(s.cliente_nome || '—')}</td><td>${escapeHtml(s.tecnico_nome || '—')}</td>
+        <td>${escapeHtml(s.cliente_nome || '—')}</td><td>${escapeHtml(s.os_numero || '—')}</td>
+        <td>${escapeHtml(s.tecnico_nome || '—')}</td>
         <td>${fmtData(s.data_inicio)}</td><td>${badge(STATUS_SERVICO, s.status)}</td></tr>`).join('')
-        || '<tr><td colspan="6"><div class="empty">'+icon('tool')+'<div>Nenhum serviço.</div></div></td></tr>';
+        || '<tr><td colspan="7"><div class="empty">'+icon('tool')+'<div>Nenhum serviço.</div></div></td></tr>';
     const c = el(`<div>
       <div class="page-head"><div class="ph-text"><h2>Serviços Metrológicos</h2><p>Procedimentos, padrões e normas aplicados por serviço</p></div>
         <div class="ph-actions">${podeEscrever() ? `<button class="btn btn-primary" id="novo">${icon('plus')} Novo serviço</button>` : ''}</div></div>
       <div class="toolbar"><div class="search">${icon('search')}<input id="busca" placeholder="Buscar serviço, cliente, técnico..." value="${escapeHtml(query.busca||'')}"></div></div>
-      <div class="card"><div class="table-wrap"><table><thead><tr><th>Código</th><th>Serviço</th><th>Cliente</th><th>Técnico</th><th>Início</th><th>Status</th></tr></thead><tbody>${linhas}</tbody></table></div></div></div>`);
+      <div class="card"><div class="table-wrap"><table><thead><tr><th>Código</th><th>Serviço</th><th>Cliente</th><th>OS</th><th>Técnico</th><th>Início</th><th>Status</th></tr></thead><tbody>${linhas}</tbody></table></div></div></div>`);
     const busca = c.querySelector('#busca'); let tmr;
     busca.oninput = () => { clearTimeout(tmr); tmr = setTimeout(() => location.hash = `#/servicos?busca=${encodeURIComponent(busca.value)}`, 350); };
     const nv = c.querySelector('#novo'); if (nv) nv.onclick = () => formServico();
@@ -723,16 +857,16 @@ async function viewServicos(query = {}) {
 }
 
 async function formServico(s = null) {
-    const [padroes, normas, clientes] = await Promise.all([
-        api.get('/padroes?limite=500').then((r) => r.itens), api.get('/normas'), api.get('/clientes').catch(() => []),
+    const [padroes, normas] = await Promise.all([
+        api.get('/padroes?limite=500').then((r) => r.itens), api.get('/normas'),
     ]);
-    const optC = `<option value="">—</option>` + clientes.map((c) => `<option value="${c.id}" ${s?.cliente_id===c.id?'selected':''}>${escapeHtml(c.nome)}</option>`).join('');
     const optP = padroes.map((p) => `<option value="${p.id}">${escapeHtml(p.codigo_interno)} — ${escapeHtml(p.modelo||'')}</option>`).join('');
     const optN = normas.map((n) => `<option value="${n.id}">${escapeHtml(n.codigo)} — ${escapeHtml(n.nome)}</option>`).join('');
     const body = el(`<form class="form-grid">
       <div class="field"><label>Código</label><input name="codigo" value="${escapeHtml(s?.codigo||'')}"></div>
       <div class="field"><label>Nome do serviço *</label><input name="nome" value="${escapeHtml(s?.nome||'')}"></div>
-      <div class="field"><label>Cliente</label><select name="cliente_id">${optC}</select></div>
+      <div class="field"><label>Cliente</label><input name="cliente_nome" value="${escapeHtml(s?.cliente_nome||'')}" placeholder="Ex.: Indústria Alfa Ltda"></div>
+      <div class="field"><label>OS (Ordem de Serviço)</label><input name="os_numero" value="${escapeHtml(s?.os_numero||'')}" placeholder="Ex.: OS-2026-001"></div>
       <div class="field"><label>Status</label><select name="status">${Object.entries(STATUS_SERVICO).map(([v,[l]])=>`<option value="${v}" ${s?.status===v?'selected':''}>${l}</option>`).join('')}</select></div>
       <div class="field"><label>Data início</label><input type="date" name="data_inicio" value="${s?.data_inicio||''}"></div>
       <div class="field"><label>Data conclusão</label><input type="date" name="data_conclusao" value="${s?.data_conclusao||''}"></div>
@@ -751,7 +885,6 @@ async function formServico(s = null) {
         dados.padroes = [...body.querySelector('[name=padroes]').selectedOptions].map((o) => +o.value);
         dados.normas = [...body.querySelector('[name=normas]').selectedOptions].map((o) => +o.value);
         dados.tecnico_nome = auth.user.nome; dados.tecnico_id = auth.user.id;
-        if (dados.cliente_id) dados.cliente_nome = clientes.find((c) => c.id == dados.cliente_id)?.nome;
         btnS.disabled = true;
         try { if (s) await api.put(`/servicos/${s.id}`, dados); else await api.post('/servicos', dados); toast('Serviço salvo.'); m.close(); rotear(); }
         catch (e) { toast(e.message, 'err'); btnS.disabled = false; }
@@ -769,6 +902,7 @@ async function viewServicoDetalhe(id) {
         <div class="ph-actions"><a class="btn btn-ghost" href="#/servicos">${icon('chevron')} Voltar</a>${podeEscrever() ? `<button class="btn btn-primary" id="ed">${icon('edit')} Editar</button>` : ''}</div></div>
       <div class="card" style="margin-bottom:16px"><div class="card-body"><div class="dl">
         ${dlItem('Técnico responsável', escapeHtml(s.tecnico_nome))}${dlItem('Cliente', escapeHtml(s.cliente_nome))}
+        ${dlItem('OS (Ordem de Serviço)', escapeHtml(s.os_numero))}
         ${dlItem('Início', fmtData(s.data_inicio))}${dlItem('Conclusão', fmtData(s.data_conclusao))}
         ${dlItem('Procedimento', escapeHtml(s.procedimento))}${dlItem('Normas aplicadas', norms)}
       </div></div></div>
@@ -830,10 +964,10 @@ async function gerarPDF(tipo, titulo) {
     const w = window.open('', '_blank');
     w.document.write(`<html><head><title>${titulo}</title></head><body style="font-family:sans-serif;padding:30px;font-size:12px">
       <div style="display:flex;justify-content:space-between;border-bottom:3px solid #2563eb;padding-bottom:10px;margin-bottom:16px">
-        <h2 style="color:#2563eb;margin:0">MetroControl — ${titulo}</h2>
+        <div><h2 style="color:#2563eb;margin:0">EXCELMETRO — ${titulo}</h2><span style="font-size:10px;color:#888">Excel Serviços em Metrologia Ltda · CNPJ 01.102.430/0001-87 · RBC/Inmetro nº 225</span></div>
         <div style="text-align:right;color:#666">Gerado em ${new Date().toLocaleString('pt-BR')}<br>Total: ${r.total} registros</div></div>
       <table style="width:100%;border-collapse:collapse"><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table>
-      <p style="margin-top:20px;color:#888;font-size:10px">Documento gerado pelo MetroControl · Conformidade ISO/IEC 17025 · Use "Salvar como PDF" na impressão.</p>
+      <p style="margin-top:20px;color:#888;font-size:10px">EXCELMETRO · Av. Celina Ferreira Ottoni, 5502 — Varginha/MG · Conformidade ISO/IEC 17025</p>
       <script>window.onload=()=>window.print()<\/script></body></html>`);
     w.document.close();
     toast('Relatório aberto para impressão/PDF.', 'info');

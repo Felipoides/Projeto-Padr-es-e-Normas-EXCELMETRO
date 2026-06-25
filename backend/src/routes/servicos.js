@@ -7,7 +7,7 @@ import { autenticar, exigirEscrita } from '../middleware/auth.js';
 import { registrarAuditoria } from '../lib/audit.js';
 
 const CAMPOS = ['codigo', 'nome', 'descricao', 'procedimento', 'cliente_id', 'cliente_nome',
-    'tecnico_id', 'tecnico_nome', 'data_inicio', 'data_conclusao', 'status', 'observacoes'];
+    'os_numero', 'tecnico_id', 'tecnico_nome', 'data_inicio', 'data_conclusao', 'status', 'observacoes'];
 
 async function vincular(servicoId, padroes = [], normas = []) {
     await run(`DELETE FROM servico_padroes WHERE servico_id = ?`, [servicoId]);

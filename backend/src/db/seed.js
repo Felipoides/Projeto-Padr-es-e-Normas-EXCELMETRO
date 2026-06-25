@@ -154,7 +154,7 @@ export async function seed() {
 
     // ---- CONFIGURAÇÕES ---------------------------------------------------
     await run(`INSERT INTO configuracoes (chave, valor, descricao) VALUES
-         ('nome_empresa', 'EXCELMETRO — Laboratório de Metrologia', 'Nome exibido no sistema'),
+         ('nome_empresa', 'Excel Serviços em Metrologia Ltda — EXCELMETRO', 'Nome exibido no sistema'),
          ('email_alertas', '1', 'Enviar alertas de vencimento por e-mail'),
          ('dias_alerta', '30,15,7', 'Antecedência dos alertas em dias')`);
 
